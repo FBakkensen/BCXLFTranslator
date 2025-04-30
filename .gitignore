@@ -1,0 +1,94 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment folders
+venv/
+env/
+.venv/
+.env/
+.venv.bak/
+.env.bak/
+
+# IDE and editor specific files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*.DS_Store
+*.directory
+*.vscode/
+
+# Build artifacts and distribution folders
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+*.whl
+
+# Sensitive data and configuration files
+*.env
+*.secret
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+
+# Logs and runtime files
+*.log
+*.pid
+*.seed
+*.bak
+
+# Coverage and testing reports
+.coverage
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+
+# Miscellaneous
+*.sqlite3
+*.db
+*.sqlite
+.cache/
+.cache
+.cache/
+.cache/
+*.bak
+*.tmp
+*.temp
+
+# Specific to Python projects
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+.pytest_cache/
+.pyc
+*.pyo
+*.pyd
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# PyInstaller
+# Usually these files are written to the dist folder
+# but sometimes they are left in the source directory
+*.spec
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+
+# Other
+*.orig
+*.rej
+*.sublime-workspace

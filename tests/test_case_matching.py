@@ -3,7 +3,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import pytest
-from main import match_case, match_single_text
+from src.bcxlftranslator.main import match_case, match_single_text
 
 def test_match_single_text_all_upper():
     assert match_single_text("TEST", "hello") == "HELLO"

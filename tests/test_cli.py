@@ -2,7 +2,7 @@ import pytest
 import sys
 import argparse
 from unittest.mock import patch
-from main import translate_xliff, main
+from src.bcxlftranslator.main import translate_xliff, main
 import asyncio
 
 import sys

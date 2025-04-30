@@ -2,7 +2,7 @@ import pytest
 import os
 import sys
 import asyncio
-from main import translate_xliff, translate_with_retry, Translator, LANGUAGES
+from src.bcxlftranslator.main import translate_xliff, translate_with_retry, Translator, LANGUAGES
 import xml.etree.ElementTree as ET
 from unittest.mock import Mock, patch
 import tempfile
@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 @pytest.fixture
 def test_files():
-    input_file = os.path.join(os.path.dirname(__file__), 'test.xlf')
+    input_file = os.path.join(os.path.dirname(__file__), 'fixtures', 'test.xlf')
     output_file = os.path.join(os.path.dirname(__file__), 'test_output.xlf')
     return input_file, output_file
 
@@ -220,7 +220,7 @@ async def test_output_directory_creation():
         output_file = os.path.join(nested_dir, "output.xlf")
 
         # Copy test.xlf to a temporary location
-        input_file = os.path.join(os.path.dirname(__file__), 'test.xlf')
+        input_file = os.path.join(os.path.dirname(__file__), 'fixtures', 'test.xlf')
         temp_input = os.path.join(temp_dir, "test.xlf")
         shutil.copy(input_file, temp_input)
 

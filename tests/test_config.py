@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import pytest
 import asyncio
 import time
-from main import translate_with_retry, DELAY_BETWEEN_REQUESTS, MAX_RETRIES, RETRY_DELAY
+from src.bcxlftranslator.main import translate_with_retry, DELAY_BETWEEN_REQUESTS, MAX_RETRIES, RETRY_DELAY
 
 class DelayMockTranslator:
     """Mock translator that respects delays"""

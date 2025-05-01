@@ -52,25 +52,7 @@ def extract_trans_units(xliff_doc):
     ns = {'x': 'urn:oasis:names:tc:xliff:document:1.2'}
     root = xliff_doc.getroot()
     trans_units = []
-
-    # Find the <body> element
-    body = root.find('.//x:body', ns)
-    if body is None:
-        return []
-
-    # Try to find <group id="body"> inside <body>
-    group = None
-    for g in body.findall('x:group', ns):
-        if g.get('id') == 'body':
-            group = g
-            break
-
-    if group is not None:
-        tu_elements = group.findall('x:trans-unit', ns)
-    else:
-        tu_elements = body.findall('x:trans-unit', ns)
-
-    for tu in tu_elements:
+    for tu in root.findall('.//x:trans-unit', ns):
         tu_id = tu.get('id')
         source_elem = tu.find('x:source', ns)
         target_elem = tu.find('x:target', ns)
@@ -78,12 +60,16 @@ def extract_trans_units(xliff_doc):
         if source_elem is None:
             source_text = None
         else:
-            source_text = source_elem.text or "" # Simplified None check
+            source_text = source_elem.text
+            if source_text is None:
+                source_text = ""
 
         if target_elem is None:
             target_text = None
         else:
-            target_text = target_elem.text or "" # Simplified None check
+            target_text = target_elem.text
+            if target_text is None:
+                target_text = ""
 
         trans_units.append({
             'id': tu_id,
@@ -93,33 +79,9 @@ def extract_trans_units(xliff_doc):
     return trans_units
 import re
 
-# --- Pre-compiled Regex Patterns for Object Type Identification ---
-# Compile patterns once at module level for efficiency.
-# Order matters: More specific patterns must come before less specific ones.
-_OBJECT_ID_PATTERNS = [
-    # Most specific patterns first
-    (re.compile(r'^query\s+\d+\s*-\s*querycolumn\s+\d+\s*-\s*property\s+\d+\b', re.IGNORECASE), 'QueryColumn'),
-    (re.compile(r'^page\s+\d+\s*-\s*control\s+[^\-\n]+?\s*-\s*property\s+\d+\b', re.IGNORECASE), 'Control'),
-    (re.compile(r'^(page|table|codeunit)\s+\d+\s*-\s*namedtype\s+\d+\b', re.IGNORECASE), 'NamedType'),
-    (re.compile(r'^query\s+\d+\s*-\s*property\s+\d+\b', re.IGNORECASE), 'Query'), # Property of a Query
-    (re.compile(r'^(table|page)\s+\d+\s*-\s*field\s+\d+\b', re.IGNORECASE), 'Field'),
-    (re.compile(r'^table\s+\d+\s*-\s*property\s+\d+\b', re.IGNORECASE), 'Table'), # Property of a Table
-    (re.compile(r'^profile\s+\d+\s*-\s*property\s+\d+\b', re.IGNORECASE), 'Profile'), # Property of a Profile
-    (re.compile(r'^page\s+\d+\s*-\s*action\s+\d+\b', re.IGNORECASE), 'Page'), # Action on a Page
-
-    # General object types (less specific)
-    (re.compile(r'^table\s+\d+\b', re.IGNORECASE), 'Table'),
-    (re.compile(r'^page\s+\d+\b', re.IGNORECASE), 'Page'),
-    (re.compile(r'^profile\s+\d+\b', re.IGNORECASE), 'Profile'),
-    (re.compile(r'^query\s+\d+\b', re.IGNORECASE), 'Query'),
-    (re.compile(r'^codeunit\s+\d+\b', re.IGNORECASE), 'Codeunit'),
-]
-
 def identify_object_type(trans_unit_dict):
     """
     Identify the Business Central object type from a trans-unit dictionary's 'id' field.
-
-    Uses pre-compiled regular expressions for efficiency and matches based on specificity.
 
     Args:
         trans_unit_dict (dict): A dictionary with at least an 'id' key.
@@ -128,13 +90,28 @@ def identify_object_type(trans_unit_dict):
         dict: The original dictionary, enriched with 'object_type' and 'context' keys.
     """
     id_str = trans_unit_dict.get('id', '')
-    object_type = None
-    context = None # Context extraction not implemented yet
+    id_lower = id_str.lower()
 
-    for pattern, type_name in _OBJECT_ID_PATTERNS:
-        if pattern.match(id_str):
-            object_type = type_name
-            break # Found the most specific match
+    object_type = None
+
+    # Field: Table X - Field Y - ... or Page X - Field Y - ...
+    field_pattern = re.compile(r'^(table|page)\s+\d+\s*-\s*field\s+\d+\b', re.IGNORECASE)
+    # Table: Table X - ... (not Field)
+    table_pattern = re.compile(r'^table\s+\d+\b', re.IGNORECASE)
+    # Page: Page X - ... (not Field)
+    page_pattern = re.compile(r'^page\s+\d+\b', re.IGNORECASE)
+
+    if field_pattern.match(id_str):
+        object_type = 'Field'
+    elif table_pattern.match(id_str):
+        object_type = 'Table'
+    elif page_pattern.match(id_str):
+        object_type = 'Page'
+    else:
+        object_type = None
+
+    # For now, context extraction is not implemented
+    context = None
 
     trans_unit_dict['object_type'] = object_type
     trans_unit_dict['context'] = context

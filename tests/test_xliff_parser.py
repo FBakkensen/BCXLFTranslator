@@ -1,38 +1,32 @@
 import pytest
 from src.bcxlftranslator.xliff_parser import identify_object_type
 
-def test_identify_object_type_real_table_property():
-    input_dict = {
-        'id': 'Table 3928467216 - Property 2879900210',
-        'source_text': '...',
-        'target_text': '...'
-    }
-    result = identify_object_type(input_dict)
-    assert result['object_type'] == 'Table'
+def test_identify_object_type_page_control():
+    input_data = {'id': 'Page 141867820 - Control 3794685984 - Property 1295455071'}
+    result = identify_object_type(input_data)
+    assert result['object_type'] == 'Control'
 
-def test_identify_object_type_real_table_field():
-    input_dict = {
-        'id': 'Table 3928467216 - Field 2185352090 - Property 2879900210',
-        'source_text': '...',
-        'target_text': '...'
-    }
-    result = identify_object_type(input_dict)
-    assert result['object_type'] == 'Field'
+def test_identify_object_type_page_namedtype():
+    input_data = {'id': 'Page 2563671150 - NamedType 3114637384'}
+    result = identify_object_type(input_data)
+    assert result['object_type'] == 'NamedType'
 
-def test_identify_object_type_real_profile_property():
-    input_dict = {
-        'id': 'Profile 1872758708 - Property 2879900210',
-        'source_text': '...',
-        'target_text': '...'
-    }
-    result = identify_object_type(input_dict)
-    assert result['object_type'] == 'Profile'
+def test_identify_object_type_table_namedtype():
+    input_data = {'id': 'Table 3416302668 - NamedType 904652358'}
+    result = identify_object_type(input_data)
+    assert result['object_type'] == 'NamedType'
 
-def test_identify_object_type_real_page_action():
-    input_dict = {
-        'id': 'Page 21 - Action 1102601000 - Property Caption',
-        'source_text': '...',
-        'target_text': '...'
-    }
-    result = identify_object_type(input_dict)
-    assert result['object_type'] == 'Page'
+def test_identify_object_type_codeunit_namedtype():
+    input_data = {'id': 'Codeunit 3055525730 - NamedType 1010428964'}
+    result = identify_object_type(input_data)
+    assert result['object_type'] == 'NamedType'
+
+def test_identify_object_type_query_property():
+    input_data = {'id': 'Query 149526480 - Property 1064389655'}
+    result = identify_object_type(input_data)
+    assert result['object_type'] == 'Query'
+
+def test_identify_object_type_query_column():
+    input_data = {'id': 'Query 149526480 - QueryColumn 2598849494 - Property 2879900210'}
+    result = identify_object_type(input_data)
+    assert result['object_type'] == 'QueryColumn'

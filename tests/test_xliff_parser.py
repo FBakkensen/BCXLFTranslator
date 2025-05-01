@@ -30,3 +30,18 @@ def test_identify_object_type_query_column():
     input_data = {'id': 'Query 149526480 - QueryColumn 2598849494 - Property 2879900210'}
     result = identify_object_type(input_data)
     assert result['object_type'] == 'QueryColumn'
+
+def test_identify_object_type_page_control_special_chars_1():
+    input_data = {'id': 'Page 141867820 - Control Aggregation[2]5D; - Property 62802879'}
+    result = identify_object_type(input_data)
+    assert result['object_type'] == 'Control'
+
+def test_identify_object_type_page_control_special_chars_2():
+    input_data = {'id': 'Page 141867820 - Control ChartTypeReduced[3]5D; - Property 4227316127'}
+
+def test_identify_object_type_page_control_angle_brackets():
+    input_data = {'id': 'Page 141867820 - Control <Control35> - Property 2879900210', 'source_text': 'Test', 'target_text': 'Test'}
+    result = identify_object_type(input_data)
+    assert result['object_type'] == 'Control'
+    result = identify_object_type(input_data)
+    assert result['object_type'] == 'Control'

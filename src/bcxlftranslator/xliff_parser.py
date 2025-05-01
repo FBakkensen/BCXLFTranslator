@@ -99,7 +99,7 @@ import re
 _OBJECT_ID_PATTERNS = [
     # Most specific patterns first
     (re.compile(r'^query\s+\d+\s*-\s*querycolumn\s+\d+\s*-\s*property\s+\d+\b', re.IGNORECASE), 'QueryColumn'),
-    (re.compile(r'^page\s+\d+\s*-\s*control\s+\d+\s*-\s*property\s+\d+\b', re.IGNORECASE), 'Control'),
+    (re.compile(r'^page\s+\d+\s*-\s*control\s+[^\-\n]+?\s*-\s*property\s+\d+\b', re.IGNORECASE), 'Control'),
     (re.compile(r'^(page|table|codeunit)\s+\d+\s*-\s*namedtype\s+\d+\b', re.IGNORECASE), 'NamedType'),
     (re.compile(r'^query\s+\d+\s*-\s*property\s+\d+\b', re.IGNORECASE), 'Query'), # Property of a Query
     (re.compile(r'^(table|page)\s+\d+\s*-\s*field\s+\d+\b', re.IGNORECASE), 'Field'),

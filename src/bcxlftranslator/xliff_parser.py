@@ -52,7 +52,25 @@ def extract_trans_units(xliff_doc):
     ns = {'x': 'urn:oasis:names:tc:xliff:document:1.2'}
     root = xliff_doc.getroot()
     trans_units = []
-    for tu in root.findall('.//x:trans-unit', ns):
+
+    # Find the <body> element
+    body = root.find('.//x:body', ns)
+    if body is None:
+        return []
+
+    # Try to find <group id="body"> inside <body>
+    group = None
+    for g in body.findall('x:group', ns):
+        if g.get('id') == 'body':
+            group = g
+            break
+
+    if group is not None:
+        tu_elements = group.findall('x:trans-unit', ns)
+    else:
+        tu_elements = body.findall('x:trans-unit', ns)
+
+    for tu in tu_elements:
         tu_id = tu.get('id')
         source_elem = tu.find('x:source', ns)
         target_elem = tu.find('x:target', ns)
@@ -60,16 +78,12 @@ def extract_trans_units(xliff_doc):
         if source_elem is None:
             source_text = None
         else:
-            source_text = source_elem.text
-            if source_text is None:
-                source_text = ""
+            source_text = source_elem.text or "" # Simplified None check
 
         if target_elem is None:
             target_text = None
         else:
-            target_text = target_elem.text
-            if target_text is None:
-                target_text = ""
+            target_text = target_elem.text or "" # Simplified None check
 
         trans_units.append({
             'id': tu_id,
@@ -90,23 +104,33 @@ def identify_object_type(trans_unit_dict):
         dict: The original dictionary, enriched with 'object_type' and 'context' keys.
     """
     id_str = trans_unit_dict.get('id', '')
-    id_lower = id_str.lower()
+    # id_lower removed as re.IGNORECASE is used
 
     object_type = None
 
-    # Field: Table X - Field Y - ... or Page X - Field Y - ...
+    # Patterns for complex and simple IDs
     field_pattern = re.compile(r'^(table|page)\s+\d+\s*-\s*field\s+\d+\b', re.IGNORECASE)
-    # Table: Table X - ... (not Field)
+    table_property_pattern = re.compile(r'^table\s+\d+\s*-\s*property\s+\d+\b', re.IGNORECASE)
+    profile_property_pattern = re.compile(r'^profile\s+\d+\s*-\s*property\s+\d+\b', re.IGNORECASE)
+    page_action_pattern = re.compile(r'^page\s+\d+\s*-\s*action\s+\d+\b', re.IGNORECASE)
     table_pattern = re.compile(r'^table\s+\d+\b', re.IGNORECASE)
-    # Page: Page X - ... (not Field)
     page_pattern = re.compile(r'^page\s+\d+\b', re.IGNORECASE)
+    profile_pattern = re.compile(r'^profile\s+\d+\b', re.IGNORECASE)
 
     if field_pattern.match(id_str):
         object_type = 'Field'
+    elif table_property_pattern.match(id_str):
+        object_type = 'Table'
+    elif profile_property_pattern.match(id_str):
+        object_type = 'Profile'
+    elif page_action_pattern.match(id_str):
+        object_type = 'Page'
     elif table_pattern.match(id_str):
         object_type = 'Table'
     elif page_pattern.match(id_str):
         object_type = 'Page'
+    elif profile_pattern.match(id_str):
+        object_type = 'Profile'
     else:
         object_type = None
 

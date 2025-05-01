@@ -2,13 +2,15 @@ import pytest
 import os
 import sys
 import asyncio
-from src.bcxlftranslator.main import translate_xliff, translate_with_retry, Translator, LANGUAGES
+
+# Add the src directory to the path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+
+from bcxlftranslator.main import translate_xliff, translate_with_retry, Translator, LANGUAGES
 import xml.etree.ElementTree as ET
 from unittest.mock import Mock, patch
 import tempfile
 import shutil
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 @pytest.fixture
 def test_files():
@@ -309,3 +311,158 @@ async def test_translation_state_attributes():
         os.unlink(temp_input)
         if os.path.exists(temp_output):
             os.unlink(temp_output)
+
+import pytest
+import os
+import sys
+import asyncio
+import xml.etree.ElementTree as ET
+from unittest.mock import MagicMock, patch
+
+# Add the src directory to the path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+
+from bcxlftranslator.main import translate_xliff, translate_with_retry, Translator, LANGUAGES
+from bcxlftranslator import note_generation
+
+# ... existing test code remains the same ...
+
+# Replace the TestAttributionProcess class with pytest-style async tests
+@pytest.fixture
+def attribution_test_files():
+    """Setup test files for attribution tests."""
+    xliff_content = '''<?xml version="1.0" encoding="utf-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en-US" target-language="da-DK" datatype="xml">
+    <body>
+      <trans-unit id="Table 123456789" translate="yes">
+        <source>Sales Quote</source>
+        <target state="needs-translation"></target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>'''
+    
+    # Create temp files for input and output
+    input_file = 'tests/fixtures/temp_input.xlf'
+    output_file = 'tests/fixtures/temp_output.xlf'
+    
+    # Ensure the fixtures directory exists
+    os.makedirs('tests/fixtures', exist_ok=True)
+    
+    # Write test content to input file
+    with open(input_file, 'w', encoding='utf-8') as f:
+        f.write(xliff_content)
+    
+    yield input_file, output_file
+    
+    # Cleanup after test
+    for file in [input_file, output_file]:
+        if os.path.exists(file):
+            os.remove(file)
+
+@pytest.mark.asyncio
+async def test_microsoft_terminology_attribution(attribution_test_files):
+    """Test that Microsoft Terminology translations are properly attributed."""
+    input_file, output_file = attribution_test_files
+    
+    # Create mocks
+    with patch('bcxlftranslator.main.Translator') as mock_translator_cls, \
+         patch('bcxlftranslator.main.match_case') as mock_match_case, \
+         patch('bcxlftranslator.note_generation.add_note_to_trans_unit') as mock_add_note, \
+         patch('bcxlftranslator.main.terminology_lookup', return_value='Salgstilbud'):
+        
+        # Setup mocks
+        mock_translator = MagicMock()
+        mock_translator_cls.return_value.__aenter__.return_value = mock_translator
+        mock_match_case.return_value = 'Salgstilbud'
+        
+        # Run the translation process
+        await translate_xliff(input_file, output_file)
+        
+        # Verify note_generation.add_note_to_trans_unit was called
+        mock_add_note.assert_called()
+        # Check that the note contains "Microsoft Terminology"
+        args, _ = mock_add_note.call_args
+        assert "Microsoft Terminology" in args[1]
+
+@pytest.mark.asyncio
+async def test_google_translate_attribution(attribution_test_files):
+    """Test that Google Translate translations are properly attributed."""
+    input_file, output_file = attribution_test_files
+    
+    # Create mocks
+    with patch('bcxlftranslator.main.Translator') as mock_translator_cls, \
+         patch('bcxlftranslator.main.match_case') as mock_match_case, \
+         patch('bcxlftranslator.note_generation.add_note_to_trans_unit') as mock_add_note, \
+         patch('bcxlftranslator.main.terminology_lookup', return_value=None), \
+         patch('bcxlftranslator.main.translate_with_retry') as mock_translate_with_retry:
+        
+        # Setup mocks for the translation process
+        mock_translator = MagicMock()
+        mock_translator_cls.return_value.__aenter__.return_value = mock_translator
+        
+        # Mock the translate_with_retry function to return a translated result
+        mock_translate_with_retry.return_value = 'Tilbud'
+        
+        # Mock match_case to return the input (no case changes for simplicity)
+        mock_match_case.return_value = 'Tilbud'
+        
+        # Run the translation process
+        await translate_xliff(input_file, output_file)
+        
+        # Verify note_generation.add_note_to_trans_unit was called
+        mock_add_note.assert_called()
+        # Check that the note contains "Google Translate"
+        args, _ = mock_add_note.call_args
+        assert "Google Translate" in args[1]
+
+@pytest.mark.asyncio
+async def test_attribution_disabled(attribution_test_files):
+    """Test that attribution can be disabled."""
+    input_file, output_file = attribution_test_files
+    
+    # Create mocks
+    with patch('bcxlftranslator.main.Translator') as mock_translator_cls, \
+         patch('bcxlftranslator.note_generation.add_note_to_trans_unit') as mock_add_note:
+        
+        # Setup mocks
+        mock_translator = MagicMock()
+        mock_translator_cls.return_value.__aenter__.return_value = mock_translator
+        
+        # Run the translation process with attribution disabled
+        await translate_xliff(input_file, output_file, add_attribution=False)
+        
+        # Verify note_generation.add_note_to_trans_unit was not called
+        mock_add_note.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_attribution_metadata(attribution_test_files):
+    """Test that attribution contains metadata about the translation."""
+    input_file, output_file = attribution_test_files
+    
+    # Create mocks
+    with patch('bcxlftranslator.main.Translator') as mock_translator_cls, \
+         patch('bcxlftranslator.main.match_case') as mock_match_case, \
+         patch('bcxlftranslator.note_generation.generate_attribution_note') as mock_generate_note, \
+         patch('bcxlftranslator.note_generation.add_note_to_trans_unit') as mock_add_note, \
+         patch('bcxlftranslator.main.terminology_lookup', return_value='Salgstilbud'):
+        
+        # Setup mocks
+        mock_translator = MagicMock()
+        mock_translator_cls.return_value.__aenter__.return_value = mock_translator
+        mock_match_case.return_value = 'Salgstilbud'
+        
+        # Setup the mock generate_attribution_note to return a valid note
+        mock_generate_note.return_value = "Source: Microsoft Terminology"
+        
+        # Run the translation process
+        await translate_xliff(input_file, output_file)
+        
+        # Verify generate_attribution_note was called with metadata
+        mock_generate_note.assert_called()
+        
+        # Just verify it was called with some parameters indicating metadata was passed
+        call_kwargs = mock_generate_note.call_args.kwargs
+        assert "metadata" in call_kwargs
+        assert "source_text" in call_kwargs["metadata"]

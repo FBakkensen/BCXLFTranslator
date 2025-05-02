@@ -10,13 +10,21 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def test_cli_no_args():
-    """Test CLI with no arguments"""
+    """
+    Given the CLI is run with no arguments
+    When the main function is called
+    Then it should exit with a SystemExit
+    """
     with patch('sys.argv', ['main.py']):
         with pytest.raises(SystemExit):
             main()
 
 def test_cli_help(capsys):
-    """Test help output"""
+    """
+    Given the CLI is run with the --help argument
+    When the main function is called
+    Then it should display help text including input_file and output_file options
+    """
     with patch('sys.argv', ['main.py', '--help']):
         with pytest.raises(SystemExit):
             main()
@@ -27,7 +35,11 @@ def test_cli_help(capsys):
 
 @pytest.mark.asyncio
 async def test_progress_reporting(capsys):
-    """Test that progress is reported correctly"""
+    """
+    Given an XLIFF file with translation units
+    When the translate_xliff function is called
+    Then it should report progress information to stdout
+    """
     input_content = '''<?xml version="1.0" encoding="utf-8"?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
   <file source-language="en-US" target-language="da-DK">

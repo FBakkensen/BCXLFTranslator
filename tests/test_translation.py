@@ -20,6 +20,11 @@ def test_files():
 
 @pytest.mark.asyncio
 async def test_translation_process(test_files):
+    """
+    Given a valid XLIFF file for translation
+    When the translate_xliff function is called
+    Then it should translate the file correctly and preserve format-specific attributes
+    """
     input_file, output_file = test_files
 
     # Run translation
@@ -66,6 +71,11 @@ async def test_translation_process(test_files):
 
 @pytest.mark.asyncio
 async def test_translation_error_handling(test_files):
+    """
+    Given a non-existent input file
+    When the translate_xliff function is called
+    Then it should raise SystemExit
+    """
     input_file = "nonexistent.xlf"
     output_file = "error_output.xlf"
 
@@ -74,7 +84,11 @@ async def test_translation_error_handling(test_files):
 
 @pytest.mark.asyncio
 async def test_translation_retry_mechanism():
-    """Test that translation retry mechanism works properly"""
+    """
+    Given a translator that fails twice then succeeds
+    When the translate_with_retry function is called
+    Then it should retry and eventually return a successful translation
+    """
     # Mock translator that fails twice then succeeds
     class MockTranslator:
         def __init__(self):
@@ -93,7 +107,11 @@ async def test_translation_retry_mechanism():
 
 @pytest.mark.asyncio
 async def test_translation_cache():
-    """Test that translation caching works properly"""
+    """
+    Given an XLIFF file with duplicate text
+    When the translate_xliff function is called
+    Then it should only translate each unique text once and reuse cached translations
+    """
     input_content = '''<?xml version="1.0" encoding="utf-8"?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
   <file source-language="en-US" target-language="da-DK">
@@ -140,7 +158,11 @@ async def test_translation_cache():
 
 @pytest.mark.asyncio
 async def test_language_code_handling():
-    """Test handling of different language codes"""
+    """
+    Given an XLIFF file with short language codes (en/da instead of en-US/da-DK)
+    When the translate_xliff function is called
+    Then it should correctly handle the language codes and translate successfully
+    """
     input_content = '''<?xml version="1.0" encoding="utf-8"?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
   <file source-language="en" target-language="da">
@@ -174,7 +196,11 @@ async def test_language_code_handling():
 
 @pytest.mark.asyncio
 async def test_special_characters():
-    """Test handling of special characters in translation"""
+    """
+    Given an XLIFF file containing XML special characters (&, <, >, ", ')
+    When the translate_xliff function is called
+    Then it should properly handle character escaping while preserving the meaning
+    """
     special_chars = "Hello & < > \" ' world"  # XML special characters
     escaped_chars = "Hello &amp; &lt; &gt; &quot; &apos; world"  # Escaped version
     input_content = f'''<?xml version="1.0" encoding="utf-8"?>
@@ -215,7 +241,11 @@ async def test_special_characters():
 
 @pytest.mark.asyncio
 async def test_output_directory_creation():
-    """Test creation of output directory structure"""
+    """
+    Given an output file path with non-existent parent directories
+    When the translate_xliff function is called
+    Then it should create all the necessary directories before writing the file
+    """
     temp_dir = tempfile.mkdtemp()
     try:
         nested_dir = os.path.join(temp_dir, "a", "b", "c")
@@ -252,7 +282,11 @@ def cleanup():
 
 @pytest.mark.asyncio
 async def test_translation_state_attributes():
-    """Test that translation updates all required attributes and elements"""
+    """
+    Given an XLIFF file with trans-unit containing multiple attributes and notes
+    When the translate_xliff function is called
+    Then it should update the state correctly and preserve appropriate attributes and notes
+    """
     input_content = '''<?xml version="1.0" encoding="utf-8"?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
   <file source-language="en-US" target-language="da-DK">
@@ -363,7 +397,11 @@ def attribution_test_files():
 
 @pytest.mark.asyncio
 async def test_microsoft_terminology_attribution(attribution_test_files):
-    """Test that Microsoft Terminology translations are properly attributed."""
+    """
+    Given a translation from Microsoft Terminology
+    When the translate_xliff function is called
+    Then it should add a proper attribution note mentioning Microsoft Terminology
+    """
     input_file, output_file = attribution_test_files
 
     # Create mocks
@@ -388,7 +426,11 @@ async def test_microsoft_terminology_attribution(attribution_test_files):
 
 @pytest.mark.asyncio
 async def test_google_translate_attribution(attribution_test_files):
-    """Test that Google Translate translations are properly attributed."""
+    """
+    Given a translation from Google Translate (no terminology match)
+    When the translate_xliff function is called
+    Then it should add a proper attribution note mentioning Google Translate
+    """
     input_file, output_file = attribution_test_files
 
     # Create mocks
@@ -419,7 +461,11 @@ async def test_google_translate_attribution(attribution_test_files):
 
 @pytest.mark.asyncio
 async def test_attribution_disabled(attribution_test_files):
-    """Test that attribution can be disabled."""
+    """
+    Given the add_attribution parameter is set to False
+    When the translate_xliff function is called
+    Then it should not add any attribution notes
+    """
     input_file, output_file = attribution_test_files
 
     # Create mocks
@@ -438,7 +484,11 @@ async def test_attribution_disabled(attribution_test_files):
 
 @pytest.mark.asyncio
 async def test_attribution_metadata(attribution_test_files):
-    """Test that attribution contains metadata about the translation."""
+    """
+    Given a translation from Microsoft Terminology
+    When the translate_xliff function is called
+    Then the attribution note should include metadata about the translation
+    """
     input_file, output_file = attribution_test_files
 
     # Create mocks

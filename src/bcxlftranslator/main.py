@@ -299,7 +299,7 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         skipped_count = 0
         error_count = 0
         current_unit = 0
-        
+
         # Statistics for attribution
         microsoft_term_count = 0
         google_term_count = 0
@@ -338,28 +338,28 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                                     target_element.set('state', 'translated') # Update state
                                     target_element.set('state-qualifier', 'exact-match')
                                     cached_count += 1
-                                    
+
                                     # Add attribution if needed
                                     if add_attribution:
                                         # Determine source based on the cache entry's metadata
                                         if source_text in translation_cache:
                                             source_info = translation_cache.get(f"{source_text}_source", "GOOGLE")
-                                            
+
                                             # Generate and add attribution note
                                             from bcxlftranslator import note_generation
-                                            
+
                                             # Add metadata about the translation
                                             metadata = {
                                                 "source_text": source_text,
                                                 "translated_text": cached_translation,
                                                 "unit_id": unit.get('id', ''),
                                             }
-                                            
+
                                             note_text = note_generation.generate_attribution_note(
                                                 source=source_info,
                                                 metadata=metadata
                                             )
-                                            
+
                                             note_generation.add_note_to_trans_unit(
                                                 unit,
                                                 note_text,
@@ -372,7 +372,7 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
 
                             # --- Check Terminology Database First ---
                             terminology_translation = terminology_lookup(source_text, target_lang_code)
-                            
+
                             if terminology_translation:
                                 # Use Microsoft terminology if available
                                 target_element.text = match_case(source_text, terminology_translation)
@@ -380,40 +380,40 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                                 target_element.set('state-qualifier', 'exact-match')
                                 translated_count += 1
                                 microsoft_term_count += 1
-                                
+
                                 # Cache both the translation and its source
                                 translation_cache[source_text] = target_element.text
                                 translation_cache[f"{source_text}_source"] = "MICROSOFT"
-                                
+
                                 # Add attribution note if enabled
                                 if add_attribution:
                                     from bcxlftranslator import note_generation
-                                    
+
                                     # Add metadata about the translation
                                     metadata = {
                                         "source_text": source_text,
                                         "translated_text": target_element.text,
                                         "unit_id": unit.get('id', ''),
                                     }
-                                    
+
                                     note_text = note_generation.generate_attribution_note(
-                                        source="MICROSOFT", 
+                                        source="MICROSOFT",
                                         metadata=metadata
                                     )
-                                    
+
                                     note_generation.add_note_to_trans_unit(
-                                        unit, 
-                                        note_text, 
+                                        unit,
+                                        note_text,
                                         from_attribute="BCXLFTranslator"
                                     )
-                                    
+
                                 # Remove the NAB AL Tool Refresh Xlf note if it exists
                                 refresh_notes = unit.findall('xliff:note[@from="NAB AL Tool Refresh Xlf"]', ns)
                                 for note in refresh_notes:
                                     unit.remove(note)
-                                    
+
                                 continue  # Skip Google Translate for this unit
-                            
+
                             # --- Not in Terminology Database: Translate with Google ---
                             source_text_preview = source_text[:50] + "..." if len(source_text) > 50 else source_text
                             print(f"[{current_unit}/{total_units}] Translating: '{source_text_preview}'")
@@ -440,26 +440,26 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                                     refresh_notes = unit.findall('xliff:note[@from="NAB AL Tool Refresh Xlf"]', ns)
                                     for note in refresh_notes:
                                         unit.remove(note)
-                                        
+
                                     # Add attribution note if enabled
                                     if add_attribution:
                                         from bcxlftranslator import note_generation
-                                        
+
                                         # Add metadata about the translation
                                         metadata = {
                                             "source_text": source_text,
                                             "translated_text": translated_text,
                                             "unit_id": unit.get('id', ''),
                                         }
-                                        
+
                                         note_text = note_generation.generate_attribution_note(
-                                            source="GOOGLE", 
+                                            source="GOOGLE",
                                             metadata=metadata
                                         )
-                                        
+
                                         note_generation.add_note_to_trans_unit(
-                                            unit, 
-                                            note_text, 
+                                            unit,
+                                            note_text,
                                             from_attribute="BCXLFTranslator"
                                         )
 
@@ -539,26 +539,26 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
 def terminology_lookup(source_text, target_lang_code):
     """
     Look up a source text in the terminology database for the target language.
-    
+
     Args:
         source_text (str): The source text to look up
         target_lang_code (str): The target language code (e.g., 'da-DK')
-        
+
     Returns:
         str or None: The translated term from terminology database, or None if not found
     """
     try:
         # Normalize target language code to just the language part if needed
         target_lang = target_lang_code.split('-')[0].lower() if '-' in target_lang_code else target_lang_code.lower()
-        
+
         # Get the terminology database singleton
         from bcxlftranslator.terminology_db import get_terminology_database
-        
+
         # Look up the term in the database
         db = get_terminology_database()
         if db is None:
             return None
-            
+
         # Using the InMemoryDict for fast lookup
         result = db.lookup_term(source_text, target_lang)
         return result

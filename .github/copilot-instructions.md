@@ -31,6 +31,16 @@
    - Mock external dependencies appropriately
    - Include both happy path and error cases
    - Test edge cases and boundary conditions
+6. **Documentation**:
+   - Document each test case using the Behavior-Driven Development (BDD) style like this.
+     ```python
+     def test_function_name():
+         """
+         Given a specific input
+         When the function is called
+         Then it should return the expected output
+         """
+     ```
 
 ## Python Zen Principles
 

@@ -798,12 +798,12 @@ Requirements:
 - Ensure thread safety for concurrent updates
 
 Write these tests first:
-1. Test initializing statistics tracking
-2. Test incrementing Microsoft terminology counts
-3. Test incrementing Google Translate counts
-4. Test calculating percentages and derived stats
-5. Test reset functionality
-6. Test thread safety with concurrent updates
+1. Test initializing a statistics tracker with default values
+2. Test incrementing Microsoft terminology usage counts and verifying the count increases
+3. Test incrementing Google Translate counts and verifying the count increases
+4. Test calculating percentage of Microsoft terminology usage vs. Google Translate
+5. Test resetting statistics to initial state
+6. Test thread safety by simulating concurrent updates to statistics
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -829,12 +829,12 @@ Requirements:
 - Ensure no performance impact on the translation process
 
 Write these tests first:
-1. Test statistics updates during translation
-2. Test statistics collection with mixed sources
-3. Test cumulative statistics across multiple translations
-4. Test statistics with different granularity settings
-5. Test performance impact of statistics collection
-6. Test statistics accuracy with realistic translations
+1. Test statistics are updated when a term is translated using Microsoft terminology
+2. Test statistics are updated when a term is translated using Google Translate
+3. Test statistics accumulate correctly across multiple translation units
+4. Test statistics accumulate correctly when translating multiple files
+5. Test collecting statistics at different granularity levels (term-level vs. file-level)
+6. Test translation performance with and without statistics collection to verify minimal overhead
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -860,12 +860,12 @@ Requirements:
 - Support comparison between different statistic sets
 
 Write these tests first:
-1. Test collecting statistics by object type
-2. Test grouping statistics by different criteria
-3. Test hierarchical aggregation of statistics
-4. Test filtering statistical data
-5. Test comparing different statistic sets
-6. Test with complex categorization scenarios
+1. Test collecting statistics broken down by object type (Table, Page, Field)
+2. Test grouping statistics by context (e.g., Sales, Purchase, Inventory)
+3. Test grouping statistics by source file or module
+4. Test hierarchical aggregation (e.g., total stats, by file, by object type within file)
+5. Test filtering statistics by criteria (e.g., only Tables, only specific context)
+6. Test comparing statistics between two different translation runs
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -891,12 +891,12 @@ Requirements:
 - Ensure backward compatibility
 
 Write these tests first:
-1. Test serializing statistics to disk
-2. Test loading statistics from disk
-3. Test merging multiple statistic sets
-4. Test version handling and compatibility
-5. Test with corrupt or invalid statistics files
-6. Test with large statistics datasets
+1. Test serializing statistics to JSON and saving to disk
+2. Test loading statistics from a saved JSON file
+3. Test merging statistics from a current run with previously saved statistics
+4. Test handling older versions of statistics format (version compatibility)
+5. Test proper error handling when loading corrupt or invalid statistics files
+6. Test loading and saving large statistics datasets efficiently
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -922,12 +922,12 @@ Requirements:
 - Ensure complete test coverage of features
 
 Write these tests first:
-1. Test the complete statistics API
-2. Test configuration options for statistics
-3. Test end-to-end statistics collection during translation
-4. Test performance with large translation jobs
-5. Test all statistics features working together
-6. Test integration with other system components
+1. Test the complete statistics API for consistency across all methods
+2. Test enabling/disabling statistics collection via configuration options
+3. Test adjusting statistics detail level via configuration
+4. Test a complete translation workflow with integrated statistics collection
+5. Test querying collected statistics through the API
+6. Test performance with large datasets and complex aggregations
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -955,12 +955,12 @@ Requirements:
 - Include timing and session information
 
 Write these tests first:
-1. Test formatting statistics for console output
-2. Test different detail level reports
-3. Test handling of empty or minimal statistics
-4. Test formatting with different terminal widths
-5. Test inclusion of timing and session information
-6. Test report correctness with various statistics
+1. Test formatting basic statistics summary (counts, percentages) for console output
+2. Test displaying statistics with different levels of detail (summary vs. detailed)
+3. Test formatting output with appropriate spacing and alignment
+4. Test inclusion of timing information (duration, timestamps) in the report
+5. Test handling empty or minimal statistics (edge cases)
+6. Test output adapts to different terminal width constraints
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -986,12 +986,12 @@ Requirements:
 - Ensure compatibility with spreadsheet applications
 
 Write these tests first:
-1. Test generating CSV content from statistics
-2. Test CSV format correctness
-3. Test file writing functionality
-4. Test handling existing files (overwrite/append)
-5. Test with various statistics configurations
-6. Test CSV compatibility with standard parsers
+1. Test generating CSV with correct headers for statistics data
+2. Test CSV data rows match the statistics values accurately
+3. Test proper escaping of special characters in CSV output
+4. Test file writing with new file creation and overwrite options
+5. Test handling file system errors (e.g., permission denied, disk full)
+6. Test CSV output can be correctly parsed by standard CSV parsers
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1017,12 +1017,12 @@ Requirements:
 - Support streaming for large datasets
 
 Write these tests first:
-1. Test generating JSON content from statistics
-2. Test JSON structure and format correctness
-3. Test pretty-printing functionality
-4. Test with nested statistics structures
-5. Test inclusion of metadata
-6. Test with large statistics datasets
+1. Test generating valid JSON from statistics data
+2. Test JSON structure includes all relevant statistics fields
+3. Test proper nesting of hierarchical statistics data
+4. Test inclusion of metadata (timestamp, version, run info) in JSON
+5. Test pretty-printed JSON is properly formatted with indentation
+6. Test streaming large statistics datasets to JSON without memory issues
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1048,12 +1048,12 @@ Requirements:
 - Ensure cross-browser compatibility
 
 Write these tests first:
-1. Test generating HTML content from statistics
-2. Test inclusion of visualization elements
-3. Test HTML structure and validity
-4. Test self-contained nature of the report
-5. Test with various statistics configurations
-6. Test rendering in a headless browser environment
+1. Test generating valid HTML structure from statistics data
+2. Test inclusion of CSS and JavaScript in the generated HTML
+3. Test creation of data tables with correct statistics values
+4. Test generation of chart visualization data for source percentages
+5. Test self-contained nature (no external dependencies) of the report
+6. Test HTML validity against W3C standards
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1079,12 +1079,12 @@ Requirements:
 - Support batch generation of multiple report formats
 
 Write these tests first:
-1. Test the unified reporting API
-2. Test generation of multiple format reports
-3. Test configuration options
-4. Test format auto-detection
-5. Test batch report generation
-6. Test with various statistics and configurations
+1. Test generating reports in all supported formats through a unified API
+2. Test report generation with different configuration options
+3. Test automatic format detection based on file extension
+4. Test consistent inclusion of timestamp and session information across formats
+5. Test generating multiple report formats in a single operation
+6. Test applying a consistent set of filters across different output formats
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1112,12 +1112,12 @@ Requirements:
 - Show appropriate help messages
 
 Write these tests first:
-1. Test parsing --extract-terminology parameter
-2. Test parsing --lang parameter
-3. Test required parameter validation
-4. Test optional parameter handling
-5. Test help message generation
-6. Test parameter combination validation
+1. Test parsing the --extract-terminology parameter with a valid file path
+2. Test parsing the --lang parameter with valid language codes
+3. Test validation fails when required parameters are missing
+4. Test parsing optional configuration parameters with valid values
+5. Test help message contains information about terminology extraction
+6. Test error messages when invalid parameter combinations are provided
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1143,12 +1143,12 @@ Requirements:
 - Handle errors gracefully
 
 Write these tests first:
-1. Test extraction execution with valid parameters
-2. Test handling of file not found errors
-3. Test extraction reporting
-4. Test with various XLIFF file formats
-5. Test error message formatting
-6. Test with realistic command-line scenarios
+1. Test extracting terminology from a valid reference XLIFF file
+2. Test proper error message when specified file doesn't exist
+3. Test handling malformed XLIFF files with appropriate error messages
+4. Test extraction process reports correct counts of terms extracted
+5. Test extraction with various filtering options
+6. Test progress reporting during extraction of large files
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1174,12 +1174,12 @@ Requirements:
 - Support update/merge options for existing databases
 
 Write these tests first:
-1. Test storing extraction results in the database
-2. Test handling existing terminology (update/skip/error)
-3. Test metadata storage for the extraction
-4. Test database error handling
-5. Test reporting of storage operations
-6. Test with various extraction result sets
+1. Test storing extracted terminology entries in the database
+2. Test updating existing terminology entries with new translations
+3. Test skipping existing entries based on configuration option
+4. Test storing metadata about the extraction source and process
+5. Test graceful handling of database connection errors
+6. Test reporting correct counts of added/updated/skipped terms
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1205,12 +1205,12 @@ Requirements:
 - Provide detailed logs for troubleshooting
 
 Write these tests first:
-1. Test extraction statistics reporting
-2. Test database storage reporting
-3. Test different output format generation
-4. Test error and warning reporting
-5. Test with various extraction scenarios
-6. Test log output for troubleshooting
+1. Test reporting summary statistics about extracted terminology
+2. Test detailed reporting with term-by-term information
+3. Test reporting database storage results (added, updated, skipped)
+4. Test generating reports in different output formats (text, CSV)
+5. Test detailed logging for troubleshooting extraction issues
+6. Test including error and warning counts in the extraction report
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1236,12 +1236,12 @@ Requirements:
 - Ensure complete error handling and user feedback
 
 Write these tests first:
-1. Test the complete extraction workflow
-2. Test advanced option handling
-3. Test exit codes in various scenarios
-4. Test verbose and quiet modes
-5. Test comprehensive error handling
-6. Test with complex real-world examples
+1. Test end-to-end extraction workflow from file parsing to database storage
+2. Test applying filters to include/exclude certain terminology types
+3. Test different overwrite behaviors (skip, replace, merge)
+4. Test exit codes for success, warnings, and various error conditions
+5. Test verbose mode provides detailed output and quiet mode suppresses output
+6. Test comprehensive error handling with different failure scenarios
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1269,12 +1269,12 @@ Requirements:
 - Update help documentation
 
 Write these tests first:
-1. Test parsing --use-terminology flag
-2. Test database specification options
-3. Test feature-specific options
-4. Test parameter validation
-5. Test help text updates
-6. Test combination with existing translation parameters
+1. Test parsing the --use-terminology flag is recognized
+2. Test parsing database path specification with the --db parameter
+3. Test parsing feature-specific enabling/disabling parameters
+4. Test validation of conflicting or invalid parameter combinations
+5. Test that help text includes terminology usage parameters
+6. Test compatibility with existing translation command parameters
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1300,12 +1300,12 @@ Requirements:
 - Update configuration documentation
 
 Write these tests first:
-1. Test CLI argument to configuration mapping
-2. Test configuration file integration
-3. Test environment variable support
-4. Test configuration precedence rules
-5. Test default values and overrides
-6. Test configuration validation
+1. Test CLI arguments correctly set terminology configuration options
+2. Test loading terminology settings from a configuration file
+3. Test reading terminology configuration from environment variables
+4. Test precedence order (CLI arguments override file settings, etc.)
+5. Test default values are applied when settings aren't specified
+6. Test configuration validation rejects invalid terminology settings
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1331,12 +1331,12 @@ Requirements:
 - Maintain backward compatibility
 
 Write these tests first:
-1. Test translation with terminology enabled
-2. Test translation with terminology disabled
-3. Test configuration impact on translation behavior
-4. Test terminology status reporting
-5. Test backward compatibility
-6. Test with various configuration combinations
+1. Test translation uses terminology database when enabled
+2. Test translation falls back to Google Translate when terminology is disabled
+3. Test configuration options control terminology behavior correctly
+4. Test translation reports terminology usage statistics
+5. Test backward compatibility with existing command syntax
+6. Test terminology database connection errors are handled gracefully
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1362,12 +1362,12 @@ Requirements:
 - Format help text for readability
 
 Write these tests first:
-1. Test main help text includes terminology options
-2. Test detailed help for terminology commands
-3. Test example command validity
-4. Test help formatting and structure
-5. Test help accessibility from different contexts
-6. Test help content accuracy
+1. Test main help text includes basic terminology feature description
+2. Test detailed help includes all terminology command parameters
+3. Test help includes practical examples of terminology usage
+4. Test help contains best practices section for terminology
+5. Test help text formatting is consistent and readable
+6. Test help is accessible through various command invocations
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first
@@ -1393,12 +1393,12 @@ Requirements:
 - Ensure complete error handling
 
 Write these tests first:
-1. Test the complete translation flow with terminology
-2. Test all command variations and combinations
-3. Test terminology usage reporting
-4. Test batch processing with terminology
-5. Test error handling in various scenarios
-6. Test with complex real-world examples
+1. Test end-to-end translation with terminology integration
+2. Test all command variations and parameter combinations
+3. Test detailed reporting of terminology usage statistics after translation
+4. Test batch processing multiple files with terminology support
+5. Test graceful handling of various error conditions
+6. Test performance with large files and large terminology databases
 
 Follow the Red-Green-Refactor cycle:
 1. Write failing tests first

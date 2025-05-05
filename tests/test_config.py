@@ -21,6 +21,32 @@ class DelayMockTranslator:
         self.last_translate_time = current_time
         return type('obj', (object,), {'text': 'translated'})
 
+def test_cli_arguments_set_terminology_config(monkeypatch):
+    """
+    Given CLI arguments for terminology usage
+    When the configuration is loaded
+    Then the configuration should reflect the CLI options
+    """
+    import sys
+    from src.bcxlftranslator import config
+    test_args = [
+        'prog',
+        '--use-terminology',
+        '--db', 'myterms.db',
+        '--enable-term-matching',
+        '--disable-term-highlighting',
+        'input.xlf',
+        'output.xlf',
+    ]
+    monkeypatch.setattr(sys, 'argv', test_args)
+    cfg = config.load_config()
+    assert cfg['use_terminology'] is True
+    assert cfg['db'] == 'myterms.db'
+    assert cfg['enable_term_matching'] is True
+    assert cfg['disable_term_highlighting'] is True
+    assert cfg['input_file'] == 'input.xlf'
+    assert cfg['output_file'] == 'output.xlf'
+
 @pytest.mark.asyncio
 async def test_delay_between_requests():
     """Test that delay between requests is respected"""
@@ -72,3 +98,130 @@ async def test_max_retries():
 
     # Should have tried exactly MAX_RETRIES + 1 times (initial try + retries)
     assert attempts == MAX_RETRIES + 1
+
+def test_load_config_from_file(tmp_path, monkeypatch):
+    """
+    Given a configuration file specifying terminology options
+    When the configuration is loaded
+    Then the configuration should reflect the file values
+    """
+    import sys
+    import json
+    from src.bcxlftranslator import config
+    config_file = tmp_path / "config.json"
+    config_data = {
+        "use_terminology": True,
+        "db": "fileterms.db",
+        "enable_term_matching": True,
+        "disable_term_highlighting": True
+    }
+    config_file.write_text(json.dumps(config_data))
+    test_args = ['prog', '--config', str(config_file), 'input.xlf', 'output.xlf']
+    monkeypatch.setattr(sys, 'argv', test_args)
+    cfg = config.load_config()
+    assert cfg['use_terminology'] is True
+    assert cfg['db'] == 'fileterms.db'
+    assert cfg['enable_term_matching'] is True
+    assert cfg['disable_term_highlighting'] is True
+    assert cfg['input_file'] == 'input.xlf'
+    assert cfg['output_file'] == 'output.xlf'
+
+def test_load_config_from_env(monkeypatch):
+    """
+    Given terminology options set as environment variables
+    When the configuration is loaded
+    Then the configuration should reflect the environment variable values
+    """
+    import sys
+    from src.bcxlftranslator import config
+    monkeypatch.setenv('BCXLF_USE_TERMINOLOGY', '1')
+    monkeypatch.setenv('BCXLF_DB', 'envterms.db')
+    monkeypatch.setenv('BCXLF_ENABLE_TERM_MATCHING', '1')
+    monkeypatch.setenv('BCXLF_DISABLE_TERM_HIGHLIGHTING', '1')
+    test_args = ['prog', 'input.xlf', 'output.xlf']
+    monkeypatch.setattr(sys, 'argv', test_args)
+    cfg = config.load_config()
+    assert cfg['use_terminology'] is True
+    assert cfg['db'] == 'envterms.db'
+    assert cfg['enable_term_matching'] is True
+    assert cfg['disable_term_highlighting'] is True
+    assert cfg['input_file'] == 'input.xlf'
+    assert cfg['output_file'] == 'output.xlf'
+
+def test_config_precedence(monkeypatch, tmp_path):
+    """
+    Given terminology options set in env, config file, and CLI
+    When the configuration is loaded
+    Then precedence should be CLI > file > env
+    """
+    import sys
+    import json
+    from src.bcxlftranslator import config
+    # Set env lowest precedence
+    monkeypatch.setenv('BCXLF_USE_TERMINOLOGY', '0')
+    monkeypatch.setenv('BCXLF_DB', 'envterms.db')
+    # File middle precedence
+    config_file = tmp_path / "config.json"
+    config_data = {
+        "use_terminology": True,
+        "db": "fileterms.db"
+    }
+    config_file.write_text(json.dumps(config_data))
+    # CLI highest precedence
+    test_args = [
+        'prog',
+        '--use-terminology',
+        '--db', 'cliterms.db',
+        '--config', str(config_file),
+        'input.xlf',
+        'output.xlf',
+    ]
+    monkeypatch.setattr(sys, 'argv', test_args)
+    cfg = config.load_config()
+    # CLI wins
+    assert cfg['use_terminology'] is True
+    assert cfg['db'] == 'cliterms.db'
+    assert cfg['input_file'] == 'input.xlf'
+    assert cfg['output_file'] == 'output.xlf'
+
+def test_config_defaults(monkeypatch):
+    """
+    Given no CLI args, config file, or env vars for terminology
+    When the configuration is loaded
+    Then default values should be applied
+    """
+    import sys
+    from src.bcxlftranslator import config
+    test_args = ['prog']
+    monkeypatch.setattr(sys, 'argv', test_args)
+    cfg = config.load_config()
+    assert cfg['use_terminology'] is False
+    assert cfg['db'] is None
+    assert cfg['enable_term_matching'] is False
+    assert cfg['disable_term_matching'] is False
+    assert cfg['enable_term_highlighting'] is False
+    assert cfg['disable_term_highlighting'] is False
+    assert cfg['input_file'] is None
+    assert cfg['output_file'] is None
+
+def test_config_validation_rejects_invalid(monkeypatch):
+    """
+    Given conflicting terminology config options (e.g. both enable and disable for the same feature)
+    When the configuration is loaded
+    Then an error should be raised
+    """
+    import sys
+    from src.bcxlftranslator import config
+    test_args = [
+        'prog',
+        '--enable-term-matching',
+        '--disable-term-matching',
+        'input.xlf',
+        'output.xlf',
+    ]
+    monkeypatch.setattr(sys, 'argv', test_args)
+    try:
+        config.load_config()
+        assert False, "Expected ValueError for conflicting options"
+    except ValueError as e:
+        assert "enable and disable" in str(e) or "conflict" in str(e).lower()

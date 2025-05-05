@@ -137,3 +137,37 @@ def test_extract_progress_reporting(tmp_path):
     with patch("src.bcxlftranslator.main.report_progress") as mock_progress:
         main.extract_terminology_command(str(xliff_file), lang="da-DK")
         assert mock_progress.called
+
+
+def test_extracted_terms_are_stored_in_database(tmp_path):
+    """
+    Given a valid XLIFF file and a terminology database
+    When the extraction command is invoked
+    Then the extracted terms should be stored in the database with correct metadata
+    """
+    xliff_content = '''<?xml version="1.0" encoding="utf-8"?>
+    <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+      <file source-language="en-US" target-language="da-DK">
+        <body>
+          <trans-unit id="1">
+            <source>Customer</source>
+            <target>Kunde</target>
+          </trans-unit>
+        </body>
+      </file>
+    </xliff>'''
+    xliff_file = tmp_path / "input.xlf"
+    xliff_file.write_text(xliff_content, encoding="utf-8")
+
+    db_path = tmp_path / "terminology.db"
+    # Patch the TerminologyDatabase class in the correct module
+    with patch("src.bcxlftranslator.terminology_db.TerminologyDatabase") as mock_db_class:
+        mock_instance = mock_db_class.return_value
+        result = main.extract_terminology_command(str(xliff_file), lang="da-DK", db_path=str(db_path))
+        # Check that the database's store_terms method was called with expected data
+        assert mock_instance.store_terms.called
+        # Optionally, check the call arguments for correct metadata
+        called_args, called_kwargs = mock_instance.store_terms.call_args
+        assert any("Customer" in str(arg) and "Kunde" in str(arg) for arg in called_args)
+        # Ensure result indicates success
+        assert result.success

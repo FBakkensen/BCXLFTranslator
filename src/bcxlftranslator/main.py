@@ -42,11 +42,6 @@ def match_case(source, translated):
         # Split translated text into parts
         translated_parts = [p.strip() for p in translated.split(',')]
 
-        # If parts don't match, fall back to simple case matching
-        if len(source_parts) != len(translated_parts):
-            # Just capitalize the first letter when parts don't match
-            return translated[0].upper() + translated[1:] if translated else translated
-
         # Build result with original spacing
         result = ""
         for i, ((original_part, stripped_source), translated_part) in enumerate(zip(source_parts, translated_parts)):
@@ -566,11 +561,16 @@ def terminology_lookup(source_text, target_lang_code):
         print(f"Error looking up term in terminology database: {e}")
         return None
 
-def extract_terminology_command(xliff_file, lang, filter_type=None):
+def extract_terminology_command(xliff_file, lang, filter_type=None, db_path=None):
     """
     Command function for terminology extraction. Minimal implementation for TDD.
     """
     import xml.etree.ElementTree as ET
+    try:
+        # Import here to allow patching in tests
+        import src.bcxlftranslator.terminology_db as terminology_db
+    except ImportError:
+        terminology_db = None
     class Result:
         def __init__(self, success, count_extracted):
             self.success = success
@@ -585,6 +585,27 @@ def extract_terminology_command(xliff_file, lang, filter_type=None):
             units_to_process = filtered
         else:
             units_to_process = trans_units
+        # Prepare terms for database storage
+        terms = []
+        for tu in units_to_process:
+            source = tu.find('x:source', ns)
+            target = tu.find('x:target', ns)
+            if source is not None and target is not None:
+                terms.append({
+                    'source': source.text,
+                    'target': target.text,
+                    'id': tu.get('id'),
+                    'lang': lang
+                })
+        # Store in database if db_path provided
+        if terminology_db and db_path:
+            db = terminology_db.TerminologyDatabase(db_path)
+            metadata = {
+                'source_file': xliff_file,
+                'lang': lang,
+                'count': len(terms)
+            }
+            db.store_terms(terms, metadata=metadata)
         # Call report_progress if processing many units
         if len(units_to_process) > 10:
             for idx, _ in enumerate(units_to_process):
@@ -625,6 +646,7 @@ def main():
     parser.add_argument('--extract-terminology', metavar='XLIFF_FILE', help='Extract terminology from the given XLIFF file')
     parser.add_argument('--lang', metavar='LANG', help='Language code for extraction (e.g., da-DK)')
     parser.add_argument('--filter', metavar='FILTER', help='Optional filter for extraction (e.g., Table, Field, Page)')
+    parser.add_argument('--db-path', metavar='DB_PATH', help='Path to the terminology database file')
 
     # Original translation CLI arguments
     parser.add_argument("input_file", nargs='?', help="Path to the input XLIFF file.")
@@ -638,6 +660,7 @@ def main():
             parser.error('The --lang parameter is required when using --extract-terminology.')
         # For now, just print parsed values (minimal implementation for TDD)
         print(f"Extracting terminology from: {args.extract_terminology} (lang={args.lang}, filter={args.filter})")
+        extract_terminology_command(args.extract_terminology, args.lang, args.filter, args.db_path)
         sys.exit(0)
 
     # Translation mode (default)

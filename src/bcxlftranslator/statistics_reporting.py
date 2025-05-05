@@ -266,3 +266,74 @@ class StatisticsReporter:
         kwargs = {"indent": 2} if pretty_print else {}
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, **kwargs)
+
+    def export_statistics_html(self, statistics, file_path):
+        """
+        Export statistics to a self-contained HTML file with basic visualizations.
+        Args:
+            statistics: The TranslationStatistics object to export.
+            file_path: Path to the HTML file to write.
+        """
+        ms_count = getattr(statistics, "microsoft_terminology_count", 0)
+        gt_count = getattr(statistics, "google_translate_count", 0)
+        total = getattr(statistics, "total_count", ms_count + gt_count)
+        ms_pct = getattr(statistics, "microsoft_terminology_percentage", 0.0)
+        gt_pct = getattr(statistics, "google_translate_percentage", 0.0)
+        html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Translation Statistics Report</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 2em; }}
+        h1 {{ text-align: center; }}
+        table {{ border-collapse: collapse; margin: 2em auto; min-width: 350px; }}
+        th, td {{ border: 1px solid #ccc; padding: 0.5em 1em; text-align: right; }}
+        th {{ background: #f0f0f0; }}
+        .center {{ text-align: center; }}
+        .chart-container {{ width: 400px; margin: 2em auto; }}
+    </style>
+</head>
+<body>
+    <h1>Translation Statistics Report</h1>
+    <div class="center">
+        <table>
+            <tr><th>Source</th><th>Count</th><th>Percentage</th></tr>
+            <tr><td>Microsoft Terminology</td><td>{ms_count}</td><td>{ms_pct:.1f}%</td></tr>
+            <tr><td>Google Translate</td><td>{gt_count}</td><td>{gt_pct:.1f}%</td></tr>
+            <tr><th>Total</th><th colspan="2">{total}</th></tr>
+        </table>
+    </div>
+    <div class="chart-container">
+        <canvas id="chart" width="400" height="300"></canvas>
+    </div>
+    <script>
+    // Chart visualization (simple pie chart)
+    const ctx = document.getElementById('chart').getContext('2d');
+    const data = [{ms_count}, {gt_count}];
+    const colors = ["#0078D4", "#34A853"];
+    const labels = ["Microsoft Terminology", "Google Translate"];
+    const total = data.reduce((a, b) => a + b, 0);
+    let start = 0;
+    for (let i = 0; i < data.length; i++) {{
+        const val = data[i];
+        const angle = (val / total) * 2 * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(200, 150);
+        ctx.arc(200, 150, 100, start, start + angle);
+        ctx.closePath();
+        ctx.fillStyle = colors[i];
+        ctx.fill();
+        start += angle;
+    }}
+    // Add legend
+    ctx.font = "16px Arial";
+    ctx.fillStyle = "#000";
+    ctx.fillText(labels[0] + `: {ms_count} ({ms_pct:.1f}%)`, 10, 280);
+    ctx.fillText(labels[1] + `: {gt_count} ({gt_pct:.1f}%)`, 10, 300);
+    </script>
+</body>
+</html>
+'''
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(html)

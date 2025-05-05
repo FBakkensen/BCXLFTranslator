@@ -431,3 +431,116 @@ class TestStatisticsReporter:
             data = json.load(f)
         assert data["statistics"]["microsoft_terminology_count"] == 10000
         assert len(data["statistics"]["nested"]["by_object_type"]) == 10000
+
+    def test_export_html_generates_valid_html(self, tmp_path):
+        """
+        Given a TranslationStatistics object with sample data
+        When export_statistics_html is called
+        Then the output file should contain valid HTML
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 12
+        stats.google_translate_count = 88
+        stats.calculate_percentages()
+        file_path = tmp_path / "stats.html"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_html(stats, file_path)
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+        assert content.strip().startswith("<!DOCTYPE html>")
+        assert "<html" in content and "</html>" in content
+
+    def test_export_html_includes_css_and_js(self, tmp_path):
+        """
+        Given a TranslationStatistics object
+        When export_statistics_html is called
+        Then the HTML should include embedded CSS and JavaScript
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 50
+        stats.google_translate_count = 50
+        stats.calculate_percentages()
+        file_path = tmp_path / "stats.html"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_html(stats, file_path)
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "<style" in content and "</style>" in content
+        assert "<script" in content and "</script>" in content
+
+    def test_export_html_creates_data_table(self, tmp_path):
+        """
+        Given a TranslationStatistics object with counts
+        When export_statistics_html is called
+        Then the HTML should include a table with correct statistics values
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 23
+        stats.google_translate_count = 77
+        stats.calculate_percentages()
+        file_path = tmp_path / "stats.html"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_html(stats, file_path)
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "<table" in content and "</table>" in content
+        assert "23" in content and "77" in content
+
+    def test_export_html_includes_chart_visualization(self, tmp_path):
+        """
+        Given a TranslationStatistics object with source percentages
+        When export_statistics_html is called
+        Then the HTML should include chart visualization data for source percentages
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 40
+        stats.google_translate_count = 60
+        stats.calculate_percentages()
+        file_path = tmp_path / "stats.html"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_html(stats, file_path)
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "chart" in content.lower() or "canvas" in content.lower()
+        assert "40" in content and "60" in content
+
+    def test_export_html_is_self_contained(self, tmp_path):
+        """
+        Given a TranslationStatistics object
+        When export_statistics_html is called
+        Then the HTML report should be self-contained (no external dependencies)
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 10
+        stats.google_translate_count = 90
+        stats.calculate_percentages()
+        file_path = tmp_path / "stats.html"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_html(stats, file_path)
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+        # Check for no external CSS/JS links
+        assert "<link rel=" not in content
+        assert "<script src=" not in content
+
+    def test_export_html_validity_against_w3c(self, tmp_path):
+        """
+        Given a generated HTML report
+        When checked for validity
+        Then it should conform to basic W3C HTML standards (structure, tags)
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 5
+        stats.google_translate_count = 95
+        stats.calculate_percentages()
+        file_path = tmp_path / "stats.html"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_html(stats, file_path)
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+        # Basic checks for valid structure
+        assert "<!DOCTYPE html>" in content
+        assert content.count("<html") == 1
+        assert content.count("</html>") == 1
+        assert content.count("<body") == 1
+        assert content.count("</body>") == 1

@@ -566,6 +566,55 @@ def terminology_lookup(source_text, target_lang_code):
         print(f"Error looking up term in terminology database: {e}")
         return None
 
+def extract_terminology_command(xliff_file, lang, filter_type=None):
+    """
+    Command function for terminology extraction. Minimal implementation for TDD.
+    """
+    import xml.etree.ElementTree as ET
+    class Result:
+        def __init__(self, success, count_extracted):
+            self.success = success
+            self.count_extracted = count_extracted
+    try:
+        tree = ET.parse(xliff_file)
+        root = tree.getroot()
+        ns = {'x': 'urn:oasis:names:tc:xliff:document:1.2'}
+        trans_units = root.findall('.//x:trans-unit', ns)
+        if filter_type:
+            filtered = [tu for tu in trans_units if tu.get('id', '').lower().startswith(filter_type.lower())]
+            units_to_process = filtered
+        else:
+            units_to_process = trans_units
+        # Call report_progress if processing many units
+        if len(units_to_process) > 10:
+            for idx, _ in enumerate(units_to_process):
+                if idx % 10 == 0:
+                    report_progress(idx, len(units_to_process))
+        elif len(units_to_process) > 0:
+            report_progress(len(units_to_process), len(units_to_process))
+        count = len(units_to_process)
+        report_extraction_results()
+        return Result(success=True, count_extracted=count)
+    except FileNotFoundError:
+        raise
+    except ET.ParseError:
+        raise
+    except Exception as e:
+        raise
+
+def report_extraction_results(*args, **kwargs):
+    """
+    Stub for reporting extraction results. TDD stub.
+    """
+    pass
+
+
+def report_progress(*args, **kwargs):
+    """
+    Stub for progress reporting. TDD stub.
+    """
+    pass
+
 def main():
     """Main entry point for the translator"""
     parser = argparse.ArgumentParser(

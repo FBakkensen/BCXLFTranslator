@@ -9,6 +9,7 @@ console output.
 import time
 from datetime import datetime
 import shutil
+import csv
 
 
 class StatisticsReporter:
@@ -163,3 +164,39 @@ class StatisticsReporter:
         
         # Print to console
         print(report)
+
+    def export_statistics_csv(self, statistics, file_path, overwrite=True, detail_level="summary"):
+        """
+        Export statistics to a CSV file.
+
+        Args:
+            statistics: The TranslationStatistics object to export.
+            file_path: Path to the CSV file to write.
+            overwrite (bool): Whether to overwrite the file if it exists.
+            detail_level (str): Level of detail (currently unused, for future extension).
+        """
+        mode = "w" if overwrite else "x"
+        with open(file_path, mode, encoding="utf-8", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(self._csv_headers())
+            writer.writerow(self._csv_data_row(statistics))
+
+    def _csv_headers(self):
+        """
+        Return the CSV headers for statistics export.
+        """
+        return [
+            "Total translations",
+            "Microsoft Terminology",
+            "Google Translate"
+        ]
+
+    def _csv_data_row(self, statistics):
+        """
+        Return the main CSV data row for statistics export.
+        """
+        return [
+            getattr(statistics, "total_count", 0),
+            getattr(statistics, "microsoft_terminology_count", 0),
+            getattr(statistics, "google_translate_count", 0)
+        ]

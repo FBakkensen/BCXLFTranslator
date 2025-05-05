@@ -220,3 +220,115 @@ class TestStatisticsReporter:
         assert "Table" in report
         assert "Page" in report
         assert "Field" in report
+
+    def test_export_csv_correct_headers(self, tmp_path):
+        """
+        Given a TranslationStatistics object
+        When export_statistics_csv is called
+        Then the generated CSV should have correct headers for statistics data
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 12
+        stats.google_translate_count = 88
+        stats.calculate_percentages()
+        file_path = tmp_path / "stats.csv"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_csv(stats, file_path)
+        with open(file_path, encoding="utf-8") as f:
+            header = f.readline().strip()
+        assert header.startswith("Total translations,Microsoft Terminology,Google Translate")
+
+    def test_export_csv_data_rows_match_statistics(self, tmp_path):
+        """
+        Given a TranslationStatistics object with data
+        When export_statistics_csv is called
+        Then the CSV data row should match the statistics values accurately
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 55
+        stats.google_translate_count = 45
+        stats.calculate_percentages()
+        file_path = tmp_path / "stats.csv"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_csv(stats, file_path)
+        with open(file_path, encoding="utf-8") as f:
+            lines = f.readlines()
+        assert "55" in lines[1] and "45" in lines[1]
+
+    def test_export_csv_escaping_special_characters(self, tmp_path):
+        """
+        Given a TranslationStatistics object with special characters in fields
+        When export_statistics_csv is called
+        Then special characters should be properly escaped in the CSV output
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 1
+        stats.google_translate_count = 2
+        stats.extra_info = 'Value with,comma and "quote"'  # Simulate extra info field
+        file_path = tmp_path / "stats.csv"
+        reporter = StatisticsReporter()
+        # Monkeypatch reporter to include extra_info
+        def fake_row(stats):
+            return [stats.microsoft_terminology_count, stats.google_translate_count, stats.extra_info]
+        reporter._csv_data_row = fake_row
+        reporter._csv_headers = lambda: ["Microsoft Terminology", "Google Translate", "Extra Info"]
+        reporter.export_statistics_csv(stats, file_path)
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+        assert '"Value with,comma and ""quote"""' in content
+
+    def test_export_csv_file_overwrite_and_creation(self, tmp_path):
+        """
+        Given a file path for CSV output
+        When export_statistics_csv is called with overwrite option
+        Then it should create a new file or overwrite existing file as specified
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 3
+        stats.google_translate_count = 7
+        file_path = tmp_path / "stats.csv"
+        file_path.write_text("old content", encoding="utf-8")
+        reporter = StatisticsReporter()
+        reporter.export_statistics_csv(stats, file_path, overwrite=True)
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "old content" not in content
+        assert "Microsoft Terminology" in content
+
+    def test_export_csv_file_system_errors(self, tmp_path, monkeypatch):
+        """
+        Given a file path with restricted permissions
+        When export_statistics_csv is called
+        Then it should handle file system errors gracefully (e.g., permission denied)
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 1
+        stats.google_translate_count = 2
+        file_path = tmp_path / "stats.csv"
+        reporter = StatisticsReporter()
+        def raise_permission(*a, **kw):
+            raise PermissionError("Permission denied!")
+        monkeypatch.setattr("builtins.open", raise_permission)
+        with pytest.raises(PermissionError):
+            reporter.export_statistics_csv(stats, file_path)
+
+    def test_export_csv_parsable_by_standard_csv_parser(self, tmp_path):
+        """
+        Given a generated CSV file
+        When read by the Python csv module
+        Then it should be parsed without errors and match the statistics data
+        """
+        import csv
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 21
+        stats.google_translate_count = 79
+        stats.calculate_percentages()
+        file_path = tmp_path / "stats.csv"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_csv(stats, file_path)
+        with open(file_path, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        assert rows
+        assert int(rows[0]["Microsoft Terminology"]) == 21
+        assert int(rows[0]["Google Translate"]) == 79

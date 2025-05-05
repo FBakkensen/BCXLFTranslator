@@ -544,3 +544,131 @@ class TestStatisticsReporter:
         assert content.count("</html>") == 1
         assert content.count("<body") == 1
         assert content.count("</body>") == 1
+
+    def test_unified_api_generates_all_formats(self, tmp_path):
+        """
+        Given a TranslationStatistics object
+        When the unified report API is called for each supported format
+        Then it should generate valid reports in all formats (console, CSV, JSON, HTML)
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 12
+        stats.google_translate_count = 88
+        stats.calculate_percentages()
+        reporter = StatisticsReporter()
+        formats = ["console", "csv", "json", "html"]
+        outputs = {}
+        for fmt in formats:
+            if fmt == "console":
+                outputs[fmt] = reporter.generate_report(stats, format=fmt)
+                assert "Translation Statistics" in outputs[fmt]
+            else:
+                file_path = tmp_path / f"stats.{fmt}"
+                result = reporter.generate_report(stats, format=fmt, output_path=file_path)
+                assert result is None
+                assert file_path.exists()
+                with open(file_path, encoding="utf-8") as f:
+                    content = f.read()
+                if fmt == "csv":
+                    assert "," in content
+                elif fmt == "json":
+                    assert "metadata" in content and "statistics" in content
+                elif fmt == "html":
+                    assert "<html" in content.lower()
+    
+    def test_unified_api_with_configurable_options(self, tmp_path):
+        """
+        Given a TranslationStatistics object and various config options
+        When the unified report API is called with options
+        Then it should generate reports reflecting those options (e.g., detail level, pretty-print)
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 20
+        stats.google_translate_count = 80
+        stats.calculate_percentages()
+        reporter = StatisticsReporter()
+        # Example configurable options
+        config = {"detail_level": "detailed", "pretty": True}
+        report = reporter.generate_report(stats, format="console", config=config)
+        assert "Detailed" in report or "detail" in report.lower()
+        json_path = tmp_path / "stats.json"
+        reporter.generate_report(stats, format="json", output_path=json_path, config={"pretty": True})
+        with open(json_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "\n    " in content  # Pretty-printed JSON has indentation
+
+    def test_unified_api_format_detection(self, tmp_path):
+        """
+        Given a TranslationStatistics object and an output file path with extension
+        When the unified report API is called without explicit format
+        Then it should detect the format from the file extension and generate the correct report
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 33
+        stats.google_translate_count = 67
+        stats.calculate_percentages()
+        reporter = StatisticsReporter()
+        html_path = tmp_path / "stats_report.html"
+        reporter.generate_report(stats, output_path=html_path)
+        with open(html_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "<html" in content.lower()
+        csv_path = tmp_path / "stats_report.csv"
+        reporter.generate_report(stats, output_path=csv_path)
+        with open(csv_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "," in content
+
+    def test_unified_api_includes_timestamp_and_session_info(self, tmp_path):
+        """
+        Given a TranslationStatistics object
+        When the unified report API is called
+        Then all generated reports should include timestamp and session information
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 42
+        stats.google_translate_count = 58
+        stats.calculate_percentages()
+        reporter = StatisticsReporter()
+        # Assume session_info is provided or generated
+        session_info = {"session_id": "abc123", "user": "testuser"}
+        html_path = tmp_path / "stats.html"
+        reporter.generate_report(stats, format="html", output_path=html_path, session_info=session_info)
+        with open(html_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "session_id" in content or "Session" in content
+        assert "timestamp" in content or "time" in content.lower()
+        json_path = tmp_path / "stats.json"
+        reporter.generate_report(stats, format="json", output_path=json_path, session_info=session_info)
+        with open(json_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "session_id" in content
+        assert "timestamp" in content
+
+    def test_unified_api_batch_generation(self, tmp_path):
+        """
+        Given a TranslationStatistics object
+        When the unified report API is called to generate multiple formats at once
+        Then it should produce all requested report files correctly
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 15
+        stats.google_translate_count = 85
+        stats.calculate_percentages()
+        reporter = StatisticsReporter()
+        output_map = {
+            "csv": tmp_path / "batch_stats.csv",
+            "json": tmp_path / "batch_stats.json",
+            "html": tmp_path / "batch_stats.html",
+        }
+        reporter.generate_report(stats, batch_outputs=output_map)
+        for fmt, path in output_map.items():
+            assert path.exists()
+            with open(path, encoding="utf-8") as f:
+                content = f.read()
+            if fmt == "html":
+                assert "<html" in content.lower()
+            elif fmt == "json":
+                assert "{" in content
+            elif fmt == "csv":
+                assert "," in content

@@ -337,3 +337,158 @@ class StatisticsReporter:
 '''
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(html)
+
+    def generate_report(self, statistics, format=None, output_path=None, config=None, session_info=None, batch_outputs=None):
+        """
+        Unified API for generating reports in any format.
+        Args:
+            statistics: The TranslationStatistics object.
+            format: The format to generate (console, csv, json, html). Optional if output_path is given.
+            output_path: File path to write the report. If omitted, returns report as string (for console).
+            config: Dict of configuration options (detail_level, pretty, etc.).
+            session_info: Dict of session/timestamp info to include in reports.
+            batch_outputs: Dict mapping format name to output_path for batch generation.
+        Returns:
+            The report string (for console), or None for file outputs.
+        """
+        import os
+        from datetime import datetime, timezone
+        # Handle batch generation
+        if batch_outputs:
+            results = {}
+            for fmt, path in batch_outputs.items():
+                results[fmt] = self.generate_report(
+                    statistics, format=fmt, output_path=path, config=config, session_info=session_info)
+            return results
+        # Auto-detect format from output_path
+        if not format and output_path:
+            ext = os.path.splitext(str(output_path))[1].lower()
+            if ext == ".csv":
+                format = "csv"
+            elif ext == ".json":
+                format = "json"
+            elif ext == ".html":
+                format = "html"
+            else:
+                format = "console"
+        format = (format or "console").lower()
+        detail_level = (config or {}).get("detail_level", "summary")
+        pretty = (config or {}).get("pretty", False)
+        # Timestamp/session info
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        session = session_info or {}
+        # Console
+        if format == "console":
+            report = self.format_console_report(
+                statistics, detail_level=detail_level)
+            # Add timestamp/session info
+            report += f"\nTimestamp: {now}"
+            if session:
+                for k, v in session.items():
+                    report += f"\nSession {k}: {v}"
+            return report
+        # CSV
+        elif format == "csv":
+            # Not supporting session info/timestamp in CSV for now
+            self.export_statistics_csv(
+                statistics, output_path, overwrite=True, detail_level=detail_level)
+            return None
+        # JSON
+        elif format == "json":
+            # Wrap stats and session info in metadata
+            def stats_to_dict(obj):
+                if hasattr(obj, "__dict__"):
+                    return {k: stats_to_dict(v) for k, v in obj.__dict__.items() if not k.startswith("_")}
+                elif isinstance(obj, dict):
+                    return {k: stats_to_dict(v) for k, v in obj.items()}
+                elif isinstance(obj, (list, tuple)):
+                    return [stats_to_dict(x) for x in obj]
+                else:
+                    return obj
+            metadata = {
+                "timestamp": now,
+                "session": session,
+                "version": "1.0"
+            }
+            data = {
+                "metadata": metadata,
+                "statistics": stats_to_dict(statistics)
+            }
+            kwargs = {"indent": 2} if pretty else {}
+            with open(output_path, "w", encoding="utf-8") as f:
+                import json
+                json.dump(data, f, **kwargs)
+            return None
+        # HTML
+        elif format == "html":
+            # Generate HTML, inject session/timestamp if possible
+            ms_count = getattr(statistics, "microsoft_terminology_count", 0)
+            gt_count = getattr(statistics, "google_translate_count", 0)
+            total = getattr(statistics, "total_count", ms_count + gt_count)
+            ms_pct = getattr(statistics, "microsoft_terminology_percentage", 0.0)
+            gt_pct = getattr(statistics, "google_translate_percentage", 0.0)
+            info_html = f"<p>Timestamp: {now}</p>"
+            if session:
+                info_html += "<ul>" + "".join(f"<li>{k}: {v}</li>" for k, v in session.items()) + "</ul>"
+            html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Translation Statistics Report</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 2em; }}
+        h1 {{ text-align: center; }}
+        table {{ border-collapse: collapse; margin: 2em auto; min-width: 350px; }}
+        th, td {{ border: 1px solid #ccc; padding: 0.5em 1em; text-align: right; }}
+        th {{ background: #f0f0f0; }}
+        .center {{ text-align: center; }}
+        .chart-container {{ width: 400px; margin: 2em auto; }}
+    </style>
+</head>
+<body>
+    <h1>Translation Statistics Report</h1>
+    {info_html}
+    <div class="center">
+        <table>
+            <tr><th>Source</th><th>Count</th><th>Percentage</th></tr>
+            <tr><td>Microsoft Terminology</td><td>{ms_count}</td><td>{ms_pct:.1f}%</td></tr>
+            <tr><td>Google Translate</td><td>{gt_count}</td><td>{gt_pct:.1f}%</td></tr>
+            <tr><th>Total</th><th colspan="2">{total}</th></tr>
+        </table>
+    </div>
+    <div class="chart-container">
+        <canvas id="chart" width="400" height="300"></canvas>
+    </div>
+    <script>
+    // Chart visualization (simple pie chart)
+    const ctx = document.getElementById('chart').getContext('2d');
+    const data = [{ms_count}, {gt_count}];
+    const colors = ["#0078D4", "#34A853"];
+    const labels = ["Microsoft Terminology", "Google Translate"];
+    const total = data.reduce((a, b) => a + b, 0);
+    let start = 0;
+    for (let i = 0; i < data.length; i++) {{
+        const val = data[i];
+        const angle = (val / total) * 2 * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(200, 150);
+        ctx.arc(200, 150, 100, start, start + angle);
+        ctx.closePath();
+        ctx.fillStyle = colors[i];
+        ctx.fill();
+        start += angle;
+    }}
+    // Add legend
+    ctx.font = "16px Arial";
+    ctx.fillStyle = "#000";
+    ctx.fillText(labels[0] + `: {ms_count} ({ms_pct:.1f}%)`, 10, 280);
+    ctx.fillText(labels[1] + `: {gt_count} ({gt_pct:.1f}%)`, 10, 300);
+    </script>
+</body>
+</html>
+'''
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(html)
+            return None
+        else:
+            raise ValueError(f"Unsupported report format: {format}")

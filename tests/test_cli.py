@@ -85,3 +85,69 @@ async def test_progress_reporting(capsys):
         os.unlink(temp_input)
         if os.path.exists(temp_output):
             os.unlink(temp_output)
+
+def test_extract_terminology_arg_parsing():
+    """
+    Given the CLI is run with --extract-terminology and a valid file path
+    When the main function is called
+    Then it should parse the argument and not raise
+    """
+    with patch('sys.argv', ['main.py', '--extract-terminology', 'input.xlf', '--lang', 'da-DK']):
+        try:
+            main()
+        except SystemExit as e:
+            # Acceptable if main exits after parsing
+            assert e.code == 0 or e.code is None
+
+
+def test_extract_terminology_lang_parsing():
+    """
+    Given the CLI is run with --lang and valid language codes
+    When the main function is called
+    Then it should parse the language argument correctly
+    """
+    with patch('sys.argv', ['main.py', '--extract-terminology', 'input.xlf', '--lang', 'fr-FR']):
+        try:
+            main()
+        except SystemExit as e:
+            assert e.code == 0 or e.code is None
+
+
+def test_extract_terminology_missing_required():
+    """
+    Given the CLI is run with --extract-terminology but missing required --lang
+    When the main function is called
+    Then it should exit with an error
+    """
+    with patch('sys.argv', ['main.py', '--extract-terminology', 'input.xlf']):
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code != 0
+
+
+def test_extract_terminology_optional_params():
+    """
+    Given the CLI is run with optional extraction parameters
+    When the main function is called
+    Then it should parse the options without error
+    """
+    with patch('sys.argv', ['main.py', '--extract-terminology', 'input.xlf', '--lang', 'da-DK', '--filter', 'Table']):
+        try:
+            main()
+        except SystemExit as e:
+            assert e.code == 0 or e.code is None
+
+
+def test_extract_terminology_help_contains_info(capsys):
+    """
+    Given the CLI is run with --help
+    When the main function is called
+    Then it should display help text including extract-terminology info
+    """
+    with patch('sys.argv', ['main.py', '--help']):
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        assert '--extract-terminology' in captured.out
+        assert '--lang' in captured.out
+        assert 'terminology' in captured.out.lower()

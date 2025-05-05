@@ -568,12 +568,35 @@ def terminology_lookup(source_text, target_lang_code):
 
 def main():
     """Main entry point for the translator"""
-    parser = argparse.ArgumentParser(description="Translate XLIFF files using Google Translate (via googletrans library) with caching.")
-    parser.add_argument("input_file", help="Path to the input XLIFF file.")
-    parser.add_argument("output_file", help="Path to save the translated XLIFF file.")
+    parser = argparse.ArgumentParser(
+        description="Translate XLIFF files using Google Translate (via googletrans library) with caching, or extract terminology from XLIFF files.")
+    subparsers = parser.add_subparsers(dest="command", required=False)
+
+    # Extraction command group (Step 8.1)
+    parser.add_argument('--extract-terminology', metavar='XLIFF_FILE', help='Extract terminology from the given XLIFF file')
+    parser.add_argument('--lang', metavar='LANG', help='Language code for extraction (e.g., da-DK)')
+    parser.add_argument('--filter', metavar='FILTER', help='Optional filter for extraction (e.g., Table, Field, Page)')
+
+    # Original translation CLI arguments
+    parser.add_argument("input_file", nargs='?', help="Path to the input XLIFF file.")
+    parser.add_argument("output_file", nargs='?', help="Path to save the translated XLIFF file.")
 
     args = parser.parse_args()
-    asyncio.run(translate_xliff(args.input_file, args.output_file))
+
+    # Extraction mode
+    if args.extract_terminology:
+        if not args.lang:
+            parser.error('The --lang parameter is required when using --extract-terminology.')
+        # For now, just print parsed values (minimal implementation for TDD)
+        print(f"Extracting terminology from: {args.extract_terminology} (lang={args.lang}, filter={args.filter})")
+        sys.exit(0)
+
+    # Translation mode (default)
+    if args.input_file and args.output_file:
+        asyncio.run(translate_xliff(args.input_file, args.output_file))
+    else:
+        parser.print_help()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

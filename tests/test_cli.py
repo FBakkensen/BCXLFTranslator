@@ -174,3 +174,102 @@ def test_extract_terminology_help_contains_info(capsys):
         assert '--extract-terminology' in captured.out
         assert '--lang' in captured.out
         assert 'terminology' in captured.out.lower()
+
+
+def test_use_terminology_flag_parsing():
+    """
+    Given the CLI is run with --use-terminology
+    When the main function is called
+    Then it should parse the flag without error
+    """
+    import tempfile
+    import os
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlf') as f:
+        f.write('<xliff version="1.2"></xliff>')
+        temp_input = f.name
+    try:
+        with patch('sys.argv', ['main.py', temp_input, 'out.xlf', '--use-terminology']):
+            try:
+                main()
+            except SystemExit as e:
+                # Should exit with success or normal translation exit
+                assert e.code == 0 or e.code is None or e.code == 1
+    finally:
+        os.unlink(temp_input)
+
+
+def test_terminology_db_path_parsing():
+    """
+    Given the CLI is run with --db and a path
+    When the main function is called
+    Then it should parse the db path argument without error
+    """
+    import tempfile
+    import os
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlf') as f:
+        f.write('<xliff version="1.2"></xliff>')
+        temp_input = f.name
+    try:
+        with patch('sys.argv', ['main.py', temp_input, 'out.xlf', '--use-terminology', '--db', 'test_terminology.db']):
+            try:
+                main()
+            except SystemExit as e:
+                assert e.code == 0 or e.code is None or e.code == 1
+    finally:
+        os.unlink(temp_input)
+
+
+def test_terminology_feature_enable_disable():
+    """
+    Given the CLI is run with specific terminology feature enable/disable flags
+    When the main function is called
+    Then it should parse those feature parameters without error
+    """
+    import tempfile
+    import os
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlf') as f:
+        f.write('<xliff version="1.2"></xliff>')
+        temp_input = f.name
+    try:
+        with patch('sys.argv', ['main.py', temp_input, 'out.xlf', '--use-terminology', '--enable-term-matching', '--disable-term-highlighting']):
+            try:
+                main()
+            except SystemExit as e:
+                assert e.code == 0 or e.code is None or e.code == 1
+    finally:
+        os.unlink(temp_input)
+
+
+def test_terminology_invalid_param_combinations():
+    """
+    Given the CLI is run with conflicting terminology parameters
+    When the main function is called
+    Then it should exit with an error
+    """
+    import tempfile
+    import os
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlf') as f:
+        f.write('<xliff version="1.2"></xliff>')
+        temp_input = f.name
+    try:
+        with patch('sys.argv', ['main.py', temp_input, 'out.xlf', '--use-terminology', '--enable-term-matching', '--disable-term-matching']):
+            with pytest.raises(SystemExit) as exc:
+                main()
+            assert exc.value.code != 0
+    finally:
+        os.unlink(temp_input)
+
+
+def test_help_includes_terminology_options(capsys):
+    """
+    Given the CLI is run with --help
+    When the main function is called
+    Then it should display help text including terminology options
+    """
+    with patch('sys.argv', ['main.py', '--help']):
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        assert '--use-terminology' in captured.out
+        assert '--db' in captured.out or '--db-path' in captured.out
+        assert 'terminology' in captured.out.lower()

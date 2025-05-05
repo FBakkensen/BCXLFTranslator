@@ -673,8 +673,7 @@ def main():
     """Main entry point for the translator"""
     parser = argparse.ArgumentParser(
         description="Translate XLIFF files using Google Translate (via googletrans library) with caching, or extract terminology from XLIFF files.")
-    subparsers = parser.add_subparsers(dest="command", required=False)
-
+    
     # Extraction command group (Step 8.1)
     parser.add_argument('--extract-terminology', metavar='XLIFF_FILE', help='Extract terminology from the given XLIFF file')
     parser.add_argument('--lang', metavar='LANG', help='Language code for extraction (e.g., da-DK)')
@@ -683,6 +682,14 @@ def main():
     parser.add_argument('--overwrite', action='store_true', help='Overwrite existing terms in the database')
     parser.add_argument('--verbose', action='store_true', help='Print detailed extraction information')
     parser.add_argument('--quiet', action='store_true', help='Suppress extraction output')
+
+    # Step 9.1: Terminology usage CLI arguments for translation
+    parser.add_argument('--use-terminology', action='store_true', help='Enable usage of terminology database for translation')
+    parser.add_argument('--db', type=str, help='Path to the terminology database file (for translation)')
+    parser.add_argument('--enable-term-matching', action='store_true', help='Enable terminology matching feature')
+    parser.add_argument('--disable-term-matching', action='store_true', help='Disable terminology matching feature')
+    parser.add_argument('--enable-term-highlighting', action='store_true', help='Enable terminology highlighting feature')
+    parser.add_argument('--disable-term-highlighting', action='store_true', help='Disable terminology highlighting feature')
 
     # Original translation CLI arguments
     parser.add_argument("input_file", nargs='?', help="Path to the input XLIFF file.")
@@ -699,8 +706,26 @@ def main():
         extract_terminology_command(args.extract_terminology, args.lang, args.filter, args.db_path, args.overwrite, args.verbose, args.quiet)
         sys.exit(0)
 
+    # Step 9.1: Validate terminology argument combinations (translation mode only)
+    if args.use_terminology:
+        if args.enable_term_matching and args.disable_term_matching:
+            parser.error('Cannot use both --enable-term-matching and --disable-term-matching.')
+        if args.enable_term_highlighting and args.disable_term_highlighting:
+            parser.error('Cannot use both --enable-term-highlighting and --disable-term-highlighting.')
+
     # Translation mode (default)
     if args.input_file and args.output_file:
+        # For TDD: just print parsed terminology args for now
+        if args.use_terminology:
+            print(f"Translation with terminology enabled. DB: {args.db}")
+            if args.enable_term_matching:
+                print("Term matching enabled.")
+            if args.disable_term_matching:
+                print("Term matching disabled.")
+            if args.enable_term_highlighting:
+                print("Term highlighting enabled.")
+            if args.disable_term_highlighting:
+                print("Term highlighting disabled.")
         asyncio.run(translate_xliff(args.input_file, args.output_file))
     else:
         parser.print_help()

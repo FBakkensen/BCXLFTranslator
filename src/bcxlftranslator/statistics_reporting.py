@@ -10,6 +10,8 @@ import time
 from datetime import datetime
 import shutil
 import csv
+import json
+from datetime import timezone
 
 
 class StatisticsReporter:
@@ -200,3 +202,67 @@ class StatisticsReporter:
             getattr(statistics, "microsoft_terminology_count", 0),
             getattr(statistics, "google_translate_count", 0)
         ]
+
+    def export_statistics_json(self, statistics, file_path, pretty_print=False):
+        """
+        Export statistics to a JSON file, including nested structure and metadata.
+
+        Args:
+            statistics: The TranslationStatistics or similar object to export.
+            file_path: Path to the JSON file to write.
+            pretty_print (bool): Whether to pretty-print the JSON output.
+        """
+        import json
+        def stats_to_dict(obj):
+            import builtins
+            # If it's a basic type, just return it
+            if isinstance(obj, (str, int, float, bool, type(None))):
+                return obj
+            # If it's a dict, serialize keys/values
+            if isinstance(obj, dict):
+                return {k: stats_to_dict(v) for k, v in obj.items()}
+            # If it's a list or tuple, serialize elements
+            if isinstance(obj, (list, tuple)):
+                return [stats_to_dict(i) for i in obj]
+            # If it's a built-in type (not user-defined), return as-is
+            if type(obj).__module__ == 'builtins':
+                return obj
+            # Handle objects with properties and attributes
+            result = {}
+            processed = set()
+            for name in dir(obj):
+                if name.startswith("_") or name in processed:
+                    continue
+                try:
+                    value = getattr(obj, name)
+                except Exception:
+                    continue
+                if callable(value):
+                    continue
+                if name in ("__class__", "__dict__", "__weakref__", "__module__", "__doc__"):
+                    continue
+                result[name] = stats_to_dict(value)
+                processed.add(name)
+            if not result and hasattr(obj, "__dict__"):
+                for k, v in obj.__dict__.items():
+                    if not k.startswith("_"):
+                        result[k] = stats_to_dict(v)
+            if not result:
+                return obj
+            return result
+        metadata = {
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "version": "1.0",
+            "run_info": {
+                "exported_by": "BCXLFTranslator",
+                "export_time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            }
+        }
+        statistics_dict = stats_to_dict(statistics)
+        data = {
+            "metadata": metadata,
+            "statistics": statistics_dict
+        }
+        kwargs = {"indent": 2} if pretty_print else {}
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, **kwargs)

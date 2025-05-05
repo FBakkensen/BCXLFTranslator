@@ -5,6 +5,40 @@ from bcxlftranslator.exceptions import TerminologyDBError
 
 SCHEMA_VERSION = "1.0"
 
+# Singleton support for global terminology database
+_TERMINOLOGY_DB_SINGLETON = None
+
+class TerminologyDatabaseRegistry:
+    _INSTANCES = set()
+    @classmethod
+    def register(cls, instance):
+        cls._INSTANCES.add(instance)
+    @classmethod
+    def unregister(cls, instance):
+        cls._INSTANCES.discard(instance)
+    @classmethod
+    def close_all(cls):
+        global _TERMINOLOGY_DB_SINGLETON
+        for inst in list(cls._INSTANCES):
+            try:
+                inst.close()
+            except Exception:
+                pass
+        cls._INSTANCES.clear()
+        _TERMINOLOGY_DB_SINGLETON = None
+
+def get_terminology_database(db_path=":memory:"):
+    global _TERMINOLOGY_DB_SINGLETON
+    if _TERMINOLOGY_DB_SINGLETON is None:
+        _TERMINOLOGY_DB_SINGLETON = TerminologyDatabase(db_path)
+    return _TERMINOLOGY_DB_SINGLETON
+
+def close_terminology_database():
+    global _TERMINOLOGY_DB_SINGLETON
+    if _TERMINOLOGY_DB_SINGLETON is not None:
+        _TERMINOLOGY_DB_SINGLETON.close()
+        _TERMINOLOGY_DB_SINGLETON = None
+
 class TerminologyDatabase:
     """
     Encapsulates all terminology database operations.
@@ -26,6 +60,7 @@ class TerminologyDatabase:
         try:
             self.conn = self._init_terminology_db(db_path)
             self._closed = False
+            TerminologyDatabaseRegistry.register(self)
         except Exception:
             # Leave self._closed True and self.conn as None
             raise
@@ -114,6 +149,9 @@ class TerminologyDatabase:
             columns = ["id", "source_term", "target_term", "context", "object_type", "language"]
             return dict(zip(columns, row))
         return None
+
+    def lookup_term(self, source_term, language):
+        return self.get_term(source_term, language)
 
     def term_exists(self, source_term, language):
         cursor = self.conn.cursor()
@@ -267,6 +305,7 @@ class TerminologyDatabase:
                 except Exception:
                     pass
             self._closed = True
+            TerminologyDatabaseRegistry.unregister(self)
 
     def __enter__(self):
         return self

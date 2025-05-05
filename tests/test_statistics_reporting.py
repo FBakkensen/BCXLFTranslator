@@ -332,3 +332,102 @@ class TestStatisticsReporter:
         assert rows
         assert int(rows[0]["Microsoft Terminology"]) == 21
         assert int(rows[0]["Google Translate"]) == 79
+
+    def test_export_json_valid_output(self, tmp_path):
+        """
+        Given a TranslationStatistics object with data
+        When export_statistics_json is called
+        Then it should produce valid JSON output
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 10
+        stats.google_translate_count = 20
+        stats.calculate_percentages()
+        file_path = tmp_path / "stats.json"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_json(stats, file_path)
+        import json
+        with open(file_path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert isinstance(data, dict)
+        assert data["statistics"]["microsoft_terminology_count"] == 10
+        assert data["statistics"]["google_translate_count"] == 20
+
+    def test_export_json_structure_and_fields(self, tmp_path):
+        """
+        Given a TranslationStatistics object with nested data
+        When export_statistics_json is called
+        Then the JSON structure should include all relevant fields and nesting
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 5
+        stats.google_translate_count = 15
+        stats.nested = {"by_object_type": {"Table": 2, "Page": 3}}
+        file_path = tmp_path / "stats.json"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_json(stats, file_path)
+        import json
+        with open(file_path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert "statistics" in data
+        assert "nested" in data["statistics"]
+        assert "by_object_type" in data["statistics"]["nested"]
+        assert data["statistics"]["nested"]["by_object_type"]["Table"] == 2
+
+    def test_export_json_includes_metadata(self, tmp_path):
+        """
+        Given a TranslationStatistics object
+        When export_statistics_json is called
+        Then the JSON should include metadata (timestamp, version, run info)
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 1
+        stats.google_translate_count = 2
+        file_path = tmp_path / "stats.json"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_json(stats, file_path)
+        import json
+        with open(file_path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert "metadata" in data
+        assert "timestamp" in data["metadata"]
+        assert "version" in data["metadata"]
+        assert "run_info" in data["metadata"]
+
+    def test_export_json_pretty_print(self, tmp_path):
+        """
+        Given a TranslationStatistics object
+        When export_statistics_json is called with pretty_print=True
+        Then the JSON output should be indented for readability
+        """
+        stats = TranslationStatistics()
+        stats.microsoft_terminology_count = 3
+        stats.google_translate_count = 7
+        file_path = tmp_path / "stats.json"
+        reporter = StatisticsReporter()
+        reporter.export_statistics_json(stats, file_path, pretty_print=True)
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "\n  " in content or "\n    " in content  # Indentation present
+
+    def test_export_json_streaming_large_dataset(self, tmp_path):
+        """
+        Given a very large TranslationStatistics-like object
+        When export_statistics_json is called
+        Then it should stream or handle writing without memory errors
+        """
+        class LargeStats:
+            def __init__(self, n):
+                self.microsoft_terminology_count = n
+                self.google_translate_count = n
+                self.nested = {"by_object_type": {str(i): i for i in range(n)}}
+        large_stats = LargeStats(10000)
+        file_path = tmp_path / "large_stats.json"
+        reporter = StatisticsReporter()
+        # Should not raise MemoryError
+        reporter.export_statistics_json(large_stats, file_path)
+        with open(file_path, encoding="utf-8") as f:
+            import json
+            data = json.load(f)
+        assert data["statistics"]["microsoft_terminology_count"] == 10000
+        assert len(data["statistics"]["nested"]["by_object_type"]) == 10000

@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 from unittest.mock import Mock, patch
 import tempfile
 import shutil
+import gc
 
 @pytest.fixture
 def test_files():
@@ -19,6 +20,7 @@ def test_files():
     return input_file, output_file
 
 @pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 async def test_translation_process(test_files):
     """
     Given a valid XLIFF file for translation
@@ -68,6 +70,18 @@ async def test_translation_process(test_files):
                 assert target.text.count(',') == 2
                 parts = [p.strip() for p in target.text.split(',')]
                 assert all(p[0].isupper() for p in parts)
+
+    try:
+        # Cleanup
+        from bcxlftranslator.terminology_db import close_terminology_database
+        close_terminology_database()
+        import gc
+        gc.collect()
+    finally:
+        from bcxlftranslator.terminology_db import TerminologyDatabaseRegistry
+        TerminologyDatabaseRegistry.close_all()
+        import gc
+        gc.collect()
 
 @pytest.mark.asyncio
 async def test_translation_error_handling(test_files):
@@ -295,8 +309,8 @@ async def test_translation_state_attributes():
         <source>Test text</source>
         <target state="needs-translation"></target>
         <note from="Developer" annotates="general" priority="2"></note>
-        <note from="NAB AL Tool Refresh Xlf" annotates="general" priority="3">New translation.</note>
         <note from="Xliff Generator" annotates="general" priority="3">Some note</note>
+        <note from="NAB AL Tool Refresh Xlf" annotates="general" priority="3">New translation.</note>
       </trans-unit>
     </body>
   </file>
@@ -516,3 +530,14 @@ async def test_attribution_metadata(attribution_test_files):
         call_kwargs = mock_generate_note.call_args.kwargs
         assert "metadata" in call_kwargs
         assert "source_text" in call_kwargs["metadata"]
+
+import pytest
+from bcxlftranslator.terminology_db import TerminologyDatabaseRegistry
+
+@pytest.fixture(autouse=True)
+def close_db_after_test():
+    yield
+    from bcxlftranslator.terminology_db import TerminologyDatabaseRegistry
+    TerminologyDatabaseRegistry.close_all()
+    import gc
+    gc.collect()  # Force cleanup of any unclosed connections

@@ -526,6 +526,10 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
 
         print(f"Translated file saved as: {output_file}")
 
+        # Ensure all database connections are closed after translation
+        from bcxlftranslator import terminology_db
+        terminology_db.TerminologyDatabaseRegistry.close_all()
+
     except ET.ParseError as e:
         print(f"Error parsing XML file '{input_file}': {e}")
         sys.exit(1)
@@ -553,13 +557,9 @@ def terminology_lookup(source_text, target_lang_code):
 
         # Get the terminology database singleton
         from bcxlftranslator.terminology_db import get_terminology_database
-
-        # Look up the term in the database
         db = get_terminology_database()
         if db is None:
             return None
-
-        # Using the InMemoryDict for fast lookup
         result = db.lookup_term(source_text, target_lang)
         return result
     except Exception as e:

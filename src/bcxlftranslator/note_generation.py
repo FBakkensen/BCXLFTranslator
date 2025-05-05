@@ -1,7 +1,7 @@
 """
 Module for generating attribution notes for translations based on source.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 
 # Define default templates for different sources
@@ -62,7 +62,7 @@ def generate_attribution_note(source, metadata=None, microsoft_percentage=None, 
         raise ValueError("Template must contain a {source} placeholder")
 
     # Prepare template data
-    timestamp = datetime.now()
+    timestamp = datetime.now(timezone.utc)
     template_data = {
         "source": {
             "MICROSOFT": "Microsoft Terminology",
@@ -113,39 +113,34 @@ def add_note_to_trans_unit(trans_unit, note_text, from_attribute="BCXLFTranslato
         update_existing (bool, optional): Whether to update existing notes with the same 'from' attribute
 
     Returns:
-        bool: True if the note was added successfully, False otherwise
+        bool: True if the note was added or updated successfully, False otherwise
 
     Raises:
         ValueError: If trans_unit is None
     """
     if trans_unit is None:
         raise ValueError("trans_unit parameter cannot be None")
-
     if not note_text:
         return False
 
-    # Get XLIFF namespace from the trans-unit element
-    xliff_ns = None
-    for prefix, uri in ET._namespace_map.items():
-        if prefix == "" and uri.startswith("urn:oasis:names:tc:xliff:document:"):
-            xliff_ns = uri
-            break
+    import xml.etree.ElementTree as ET
 
-    if not xliff_ns:
-        # If namespace not found in the element, use the standard XLIFF namespace
-        xliff_ns = "urn:oasis:names:tc:xliff:document:1.2"
+    # Get namespace from trans_unit tag if present
+    if trans_unit.tag.startswith("{"):
+        ns = trans_unit.tag.split("}")[0][1:]
+        note_tag = f"{{{ns}}}note"
+    else:
+        note_tag = "note"
 
     # Check if we need to update an existing note
     if update_existing:
-        # Look for existing notes with the same 'from' attribute
         for child in trans_unit:
             if child.tag.endswith('note') and child.get('from') == from_attribute:
                 child.text = note_text
                 return True
-
-    # If no existing note to update or update_existing=False, add a new note
-    note_elem = ET.SubElement(trans_unit, '{%s}note' % xliff_ns)
+    # Add a new note
+    note_elem = ET.Element(note_tag)
+    note_elem.set("from", from_attribute)
     note_elem.text = note_text
-    note_elem.set('from', from_attribute)
-
+    trans_unit.append(note_elem)
     return True

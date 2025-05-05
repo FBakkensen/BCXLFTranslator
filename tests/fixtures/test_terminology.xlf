@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en-US" target-language="da-DK">
+    <body>
+      <trans-unit id="1">
+        <source>Customer</source>
+        <target state="needs-translation"></target>
+      </trans-unit>
+      <trans-unit id="2">
+        <source>Quote</source>
+        <target state="needs-translation"></target>
+      </trans-unit>
+      <trans-unit id="3">
+        <source>Sales</source>
+        <target state="needs-translation"></target>
+      </trans-unit>
+      <trans-unit id="4" translate="no">
+        <source>Do not translate this</source>
+        <target state="needs-translation"></target>
+      </trans-unit>
+      <trans-unit id="5">
+        <source>Regular text without terminology match</source>
+        <target state="needs-translation"></target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

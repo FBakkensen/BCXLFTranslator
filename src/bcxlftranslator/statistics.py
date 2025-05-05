@@ -355,6 +355,19 @@ class DetailedStatisticsCollector(StatisticsCollector):
             self._file_statistics.clear()
             self._combined_statistics.clear()
 
+    def get_dimension_values(self, dimension):
+        """
+        Get all unique values for a given dimension (e.g., object_type).
+        Args:
+            dimension (str): The dimension to retrieve values for.
+        Returns:
+            list: Unique values for the given dimension.
+        """
+        if dimension == "object_type" and hasattr(self, "_object_type_statistics"):
+            return list(self._object_type_statistics.keys())
+        # Extend here for other dimensions if needed
+        return []
+
 
 class StatisticsPersistence:
     """

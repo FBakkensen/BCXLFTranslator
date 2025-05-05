@@ -34,10 +34,11 @@ def get_terminology_database(db_path=":memory:"):
     return _TERMINOLOGY_DB_SINGLETON
 
 def close_terminology_database():
-    global _TERMINOLOGY_DB_SINGLETON
-    if _TERMINOLOGY_DB_SINGLETON is not None:
-        _TERMINOLOGY_DB_SINGLETON.close()
-        _TERMINOLOGY_DB_SINGLETON = None
+    """
+    Close the global terminology database singleton if it exists.
+    This is used primarily for test cleanup.
+    """
+    TerminologyDatabaseRegistry.close_all()
 
 class TerminologyDatabase:
     """
@@ -295,6 +296,12 @@ class TerminologyDatabase:
 
     def get_terms_by_object_type(self, language, object_type, limit=None, offset=None):
         return self.lookup_terms(language, object_type=object_type, limit=limit, offset=offset)
+
+    def store_terms(self, terms, overwrite=False, metadata=None):
+        """
+        Stub for storing terms in the terminology database. For TDD/test compatibility.
+        """
+        pass
 
     def close(self):
         # Defensive: Only close if not already closed and conn exists

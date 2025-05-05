@@ -672,7 +672,26 @@ def report_progress(current, total):
 def main():
     """Main entry point for the translator"""
     parser = argparse.ArgumentParser(
-        description="Translate XLIFF files using Google Translate (via googletrans library) with caching, or extract terminology from XLIFF files.")
+        description=(
+            "Translate XLIFF files for Microsoft Dynamics 365 Business Central using Google Translate (via googletrans library) with caching, or extract and use Business Central terminology from XLIFF files.\n\n"
+            "This tool supports advanced terminology integration for Business Central translation workflows, enabling consistent use of approved terms and fallback to machine translation where needed."
+        ),
+        epilog=(
+            "\nEXAMPLES:\n"
+            "  # Translate using terminology database\n"
+            "  main.py input.xlf output.xlf --use-terminology --db bc_terms.db\n"
+            "\n  # Extract terminology from an XLIFF reference file\n"
+            "  main.py --extract-terminology reference.xlf --lang da-DK --db-path bc_terms.db\n"
+            "\nBEST PRACTICES FOR TERMINOLOGY USAGE:\n"
+            "  - Always use the latest approved terminology database for Business Central projects.\n"
+            "  - Review extracted terms for accuracy and context before translation.\n"
+            "  - Use --enable-term-matching to enforce strict term usage in regulated scenarios.\n"
+            "  - Use --disable-term-highlighting for production files to avoid extra markup.\n"
+            "  - Fallback to Google Translate is automatic when a term is not found in the terminology DB.\n"
+            "  - For large projects, batch process with consistent terminology options.\n"
+            "\nFor more information, see project documentation or use --help with any command.\n"
+        )
+    )
     
     # Extraction command group (Step 8.1)
     parser.add_argument('--extract-terminology', metavar='XLIFF_FILE', help='Extract terminology from the given XLIFF file')

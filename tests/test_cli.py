@@ -273,3 +273,85 @@ def test_help_includes_terminology_options(capsys):
         assert '--use-terminology' in captured.out
         assert '--db' in captured.out or '--db-path' in captured.out
         assert 'terminology' in captured.out.lower()
+
+
+def test_help_includes_terminology_basic_description(capsys):
+    """
+    Given the CLI is run with --help
+    When the main function is called
+    Then it should display help text including a basic description of the terminology feature
+    """
+    with patch('sys.argv', ['main.py', '--help']):
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        assert 'terminology' in captured.out.lower()
+        assert 'business central' in captured.out.lower() or 'bc' in captured.out.lower()
+        assert 'translation' in captured.out.lower()
+
+def test_help_includes_terminology_command_parameters(capsys):
+    """
+    Given the CLI is run with --help
+    When the main function is called
+    Then it should display help text including all terminology command parameters
+    """
+    with patch('sys.argv', ['main.py', '--help']):
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        assert '--use-terminology' in captured.out
+        assert '--db' in captured.out or '--db-path' in captured.out
+        assert '--enable-term-matching' in captured.out or '--disable-term-matching' in captured.out
+
+def test_help_includes_terminology_examples(capsys):
+    """
+    Given the CLI is run with --help
+    When the main function is called
+    Then it should display help text including practical examples of terminology usage
+    """
+    with patch('sys.argv', ['main.py', '--help']):
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        assert 'example' in captured.out.lower()
+        assert 'use-terminology' in captured.out.lower() or '--db' in captured.out.lower()
+
+def test_help_includes_terminology_best_practices(capsys):
+    """
+    Given the CLI is run with --help
+    When the main function is called
+    Then it should display help text containing a best practices section for terminology
+    """
+    with patch('sys.argv', ['main.py', '--help']):
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        assert 'best practice' in captured.out.lower() or 'recommended' in captured.out.lower()
+
+def test_help_text_formatting_consistency(capsys):
+    """
+    Given the CLI is run with --help
+    When the main function is called
+    Then the help text formatting should be consistent and readable
+    """
+    with patch('sys.argv', ['main.py', '--help']):
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        # Check for consistent indentation and line breaks
+        lines = captured.out.splitlines()
+        assert any(line.startswith('  --') for line in lines)  # Indented options
+        assert all(len(line) < 120 for line in lines if line.strip())  # No overly long lines
+
+def test_help_accessible_from_multiple_invocations(capsys):
+    """
+    Given the CLI is run with -h and --help
+    When the main function is called
+    Then help should be accessible and show terminology options in both cases
+    """
+    for help_flag in ['--help', '-h']:
+        with patch('sys.argv', ['main.py', help_flag]):
+            with pytest.raises(SystemExit):
+                main()
+            captured = capsys.readouterr()
+            assert 'terminology' in captured.out.lower()

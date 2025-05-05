@@ -29,41 +29,30 @@ def match_case(source, translated):
             next_comma = source.find(',', current_pos)
             if (next_comma == -1):
                 # No more commas, take the rest of the string
-                part = source[current_pos:]
-                source_parts.append((source[current_pos:current_pos + len(part.strip())], part.strip()))
+                source_parts.append(source[current_pos:])
                 break
+            else:
+                source_parts.append(source[current_pos:next_comma])
+                current_pos = next_comma + 1
 
-            # Get the part including its whitespace
-            part = source[current_pos:next_comma]
-            # Store the part and its stripped version
-            source_parts.append((part, part.strip()))
-            current_pos = next_comma + 1
-
-        # Split translated text into parts
         translated_parts = [p.strip() for p in translated.split(',')]
-
-        # Build result with original spacing
-        result = ""
-        for i, ((original_part, stripped_source), translated_part) in enumerate(zip(source_parts, translated_parts)):
-            # Add comma if not first part
-            if i > 0:
-                result += ','
-
-            # Calculate leading/trailing spaces from original part
-            leading_spaces = len(original_part) - len(original_part.lstrip())
-            trailing_spaces = len(original_part) - len(original_part.rstrip())
-
-            # Add leading spaces
-            result += ' ' * leading_spaces
-
-            # Add case-matched translation
-            result += match_single_text(stripped_source, translated_part)
-
-            # Add trailing spaces
-            result += ' ' * trailing_spaces
-
-        return result
-
+        if len(source_parts) == len(translated_parts):
+            # Match each part
+            result = ''
+            for i, (original_part, translated_part) in enumerate(zip(source_parts, translated_parts)):
+                if i > 0:
+                    result += ','
+                leading_spaces = len(original_part) - len(original_part.lstrip())
+                trailing_spaces = len(original_part) - len(original_part.rstrip())
+                result += ' ' * leading_spaces
+                result += match_single_text(original_part.strip(), translated_part)
+                result += ' ' * trailing_spaces
+            return result
+        else:
+            # Fallback: simple sentence case (capitalize only first letter, rest lower)
+            if not translated:
+                return translated
+            return translated[0].upper() + translated[1:]
     return match_single_text(source, translated)
 
 def match_single_text(source, translated):

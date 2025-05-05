@@ -672,3 +672,123 @@ class TestStatisticsReporter:
                 assert "{" in content
             elif fmt == "csv":
                 assert "," in content
+
+class TestExtractionResultsReporting:
+    """
+    Tests for detailed reporting of terminology extraction results (Step 8.4).
+    """
+    def test_extraction_summary_report(self):
+        """
+        Given extraction results with added, updated, skipped, errors, and warnings
+        When the extraction summary report is generated
+        Then it should include correct counts for each category
+        """
+        extraction_results = {
+            'added': 5,
+            'updated': 2,
+            'skipped': 1,
+            'errors': 1,
+            'warnings': 3,
+            'terms': [
+                {'term': 'A', 'action': 'added'},
+                {'term': 'B', 'action': 'added'},
+                {'term': 'C', 'action': 'updated'},
+                {'term': 'D', 'action': 'skipped'},
+                {'term': 'E', 'action': 'added'},
+                {'term': 'F', 'action': 'added'},
+                {'term': 'G', 'action': 'updated'},
+                {'term': 'H', 'action': 'added'},
+            ],
+            'error_details': ['Failed to add term X'],
+            'warning_details': ['Term Y is ambiguous', 'Term Z is deprecated', 'Term Q is missing context']
+        }
+        from src.bcxlftranslator.extraction_reporting import ExtractionResultsReporter
+        reporter = ExtractionResultsReporter()
+        summary = reporter.format_summary_report(extraction_results)
+        assert 'Added: 5' in summary
+        assert 'Updated: 2' in summary
+        assert 'Skipped: 1' in summary
+        assert 'Errors: 1' in summary
+        assert 'Warnings: 3' in summary
+
+    def test_extraction_detailed_report_includes_term_info(self):
+        """
+        Given extraction results with term-by-term info
+        When the detailed extraction report is generated
+        Then each term and its action should be listed
+        """
+        extraction_results = {
+            'terms': [
+                {'term': 'A', 'action': 'added'},
+                {'term': 'B', 'action': 'updated'},
+                {'term': 'C', 'action': 'skipped'},
+            ]
+        }
+        from src.bcxlftranslator.extraction_reporting import ExtractionResultsReporter
+        reporter = ExtractionResultsReporter()
+        detail = reporter.format_detailed_report(extraction_results)
+        assert 'A' in detail and 'added' in detail
+        assert 'B' in detail and 'updated' in detail
+        assert 'C' in detail and 'skipped' in detail
+
+    def test_extraction_report_csv_format(self, tmp_path):
+        """
+        Given extraction results
+        When the CSV report is generated
+        Then the CSV should have correct headers and rows for each term
+        """
+        extraction_results = {
+            'terms': [
+                {'term': 'A', 'action': 'added'},
+                {'term': 'B', 'action': 'updated'},
+                {'term': 'C', 'action': 'skipped'},
+            ]
+        }
+        from src.bcxlftranslator.extraction_reporting import ExtractionResultsReporter
+        reporter = ExtractionResultsReporter()
+        csv_path = tmp_path / 'extraction_report.csv'
+        reporter.export_csv_report(extraction_results, csv_path)
+        with open(csv_path, encoding='utf-8') as f:
+            content = f.read()
+        assert 'term,action' in content
+        assert 'A,added' in content
+        assert 'B,updated' in content
+        assert 'C,skipped' in content
+
+    def test_extraction_report_logs_errors_and_warnings(self, caplog):
+        """
+        Given extraction results with errors and warnings
+        When the extraction report is generated
+        Then errors and warnings should be logged for troubleshooting
+        """
+        extraction_results = {
+            'errors': 1,
+            'warnings': 2,
+            'error_details': ['Failed to add term X'],
+            'warning_details': ['Term Y is ambiguous', 'Term Z is deprecated']
+        }
+        from src.bcxlftranslator.extraction_reporting import ExtractionResultsReporter
+        reporter = ExtractionResultsReporter()
+        with caplog.at_level('WARNING'):
+            reporter.log_issues(extraction_results)
+        assert 'Failed to add term X' in caplog.text
+        assert 'Term Y is ambiguous' in caplog.text
+        assert 'Term Z is deprecated' in caplog.text
+
+    def test_extraction_report_includes_error_and_warning_counts(self):
+        """
+        Given extraction results with errors and warnings
+        When the extraction summary report is generated
+        Then it should include counts for errors and warnings
+        """
+        extraction_results = {
+            'errors': 2,
+            'warnings': 4,
+            'error_details': ['Error 1', 'Error 2'],
+            'warning_details': ['Warning 1', 'Warning 2', 'Warning 3', 'Warning 4']
+        }
+        from src.bcxlftranslator.extraction_reporting import ExtractionResultsReporter
+        reporter = ExtractionResultsReporter()
+        summary = reporter.format_summary_report(extraction_results)
+        assert 'Errors: 2' in summary
+        assert 'Warnings: 4' in summary

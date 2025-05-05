@@ -92,12 +92,19 @@ def test_extract_terminology_arg_parsing():
     When the main function is called
     Then it should parse the argument and not raise
     """
-    with patch('sys.argv', ['main.py', '--extract-terminology', 'input.xlf', '--lang', 'da-DK']):
-        try:
-            main()
-        except SystemExit as e:
-            # Acceptable if main exits after parsing
-            assert e.code == 0 or e.code is None
+    import tempfile
+    import os
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlf') as f:
+        f.write('<xliff version="1.2"></xliff>')
+        temp_input = f.name
+    try:
+        with patch('sys.argv', ['main.py', '--extract-terminology', temp_input, '--lang', 'da-DK']):
+            try:
+                main()
+            except SystemExit as e:
+                assert e.code == 0 or e.code is None
+    finally:
+        os.unlink(temp_input)
 
 
 def test_extract_terminology_lang_parsing():
@@ -106,11 +113,40 @@ def test_extract_terminology_lang_parsing():
     When the main function is called
     Then it should parse the language argument correctly
     """
-    with patch('sys.argv', ['main.py', '--extract-terminology', 'input.xlf', '--lang', 'fr-FR']):
-        try:
-            main()
-        except SystemExit as e:
-            assert e.code == 0 or e.code is None
+    import tempfile
+    import os
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlf') as f:
+        f.write('<xliff version="1.2"></xliff>')
+        temp_input = f.name
+    try:
+        with patch('sys.argv', ['main.py', '--extract-terminology', temp_input, '--lang', 'fr-FR']):
+            try:
+                main()
+            except SystemExit as e:
+                assert e.code == 0 or e.code is None
+    finally:
+        os.unlink(temp_input)
+
+
+def test_extract_terminology_optional_params():
+    """
+    Given the CLI is run with optional extraction parameters
+    When the main function is called
+    Then it should parse the options without error
+    """
+    import tempfile
+    import os
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlf') as f:
+        f.write('<xliff version="1.2"></xliff>')
+        temp_input = f.name
+    try:
+        with patch('sys.argv', ['main.py', '--extract-terminology', temp_input, '--lang', 'da-DK', '--filter', 'Table']):
+            try:
+                main()
+            except SystemExit as e:
+                assert e.code == 0 or e.code is None
+    finally:
+        os.unlink(temp_input)
 
 
 def test_extract_terminology_missing_required():
@@ -123,19 +159,6 @@ def test_extract_terminology_missing_required():
         with pytest.raises(SystemExit) as exc:
             main()
         assert exc.value.code != 0
-
-
-def test_extract_terminology_optional_params():
-    """
-    Given the CLI is run with optional extraction parameters
-    When the main function is called
-    Then it should parse the options without error
-    """
-    with patch('sys.argv', ['main.py', '--extract-terminology', 'input.xlf', '--lang', 'da-DK', '--filter', 'Table']):
-        try:
-            main()
-        except SystemExit as e:
-            assert e.code == 0 or e.code is None
 
 
 def test_extract_terminology_help_contains_info(capsys):

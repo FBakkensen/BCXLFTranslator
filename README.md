@@ -60,14 +60,8 @@ For convenience on Windows systems, you can use the included batch file to set u
 ### Basic Usage (Windows PowerShell)
 
 ```powershell
-# Using the module directly
-python -m bcxlftranslator.main input.xlf output.xlf
-
-# Or, after installation as a package
-bcxlftranslator input.xlf output.xlf
-
-# With PowerShell's .\ syntax for local scripts
-.\python -m bcxlftranslator.main input.xlf output.xlf
+# Using the module directly (recommended for src layout)
+python -m src.bcxlftranslator.main input.xlf output.xlf
 ```
 
 ### Command-Line Arguments
@@ -88,10 +82,10 @@ bcxlftranslator input.xlf output.xlf
 
 ```powershell
 # Example with specific files in PowerShell
-bcxlftranslator "./BaseApp.en-US.xlf" "./BaseApp.fr-FR.xlf"
+python -m src.bcxlftranslator.main "./BaseApp.en-US.xlf" "./BaseApp.fr-FR.xlf"
 
 # With full paths (Windows style)
-bcxlftranslator "C:\Projects\BC\BaseApp.en-US.xlf" "C:\Projects\BC\BaseApp.fr-FR.xlf"
+python -m src.bcxlftranslator.main "C:\Projects\BC\BaseApp.en-US.xlf" "C:\Projects\BC\BaseApp.fr-FR.xlf"
 ```
 
 ## Microsoft Business Central Terminology Integration
@@ -106,10 +100,10 @@ Before translating your own files, you can extract official Microsoft terminolog
 
 ```powershell
 # Extract terminology from Microsoft reference file
-python -m bcxlftranslator.main --extract-terminology "path/to/microsoft-reference.xlf" --lang fr-FR
+python -m src.bcxlftranslator.main --extract-terminology "path/to/microsoft-reference.xlf" --lang fr-FR
 
 # Multiple files can be processed for comprehensive terminology coverage
-python -m bcxlftranslator.main --extract-terminology "path/to/another-reference.xlf" --lang fr-FR
+python -m src.bcxlftranslator.main --extract-terminology "path/to/another-reference.xlf" --lang fr-FR
 ```
 
 The extraction process:
@@ -124,10 +118,10 @@ When translating your XLIFF files, enable terminology application:
 
 ```powershell
 # Use the extracted terminology during translation
-python -m bcxlftranslator.main input.xlf output.xlf --use-terminology
+python -m src.bcxlftranslator.main input.xlf output.xlf --use-terminology
 
 # You can also specify a custom terminology database path
-python -m bcxlftranslator.main input.xlf output.xlf --use-terminology --terminology-db "path/to/custom/terminology.db"
+python -m src.bcxlftranslator.main input.xlf output.xlf --use-terminology --terminology-db "path/to/custom/terminology.db"
 ```
 
 With terminology enabled, the translation process:
@@ -174,7 +168,7 @@ You can save these statistics to a file for further analysis:
 
 ```powershell
 # Save statistics to a CSV file
-python -m bcxlftranslator.main input.xlf output.xlf --use-terminology --stats-file "translation-stats.csv"
+python -m src.bcxlftranslator.main input.xlf output.xlf --use-terminology --stats-file "translation-stats.csv"
 ```
 
 The CSV file includes detailed information about each translated term and its source.

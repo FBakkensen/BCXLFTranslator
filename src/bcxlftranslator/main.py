@@ -250,7 +250,12 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
         StatisticsCollector or None: Statistics object if successful, None if failed
     """
     # Initialize statistics collector
-    from bcxlftranslator.statistics import StatisticsCollector
+    try:
+        # Try relative import first
+        from .statistics import StatisticsCollector
+    except ImportError:
+        # Fall back to absolute import (when installed as package)
+        from bcxlftranslator.statistics import StatisticsCollector
     stats_collector = StatisticsCollector()
     
     try:
@@ -293,7 +298,13 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
 
         # Initialize terminology database if terminology is enabled
         if use_terminology:
-            from bcxlftranslator.terminology_db import get_terminology_database
+            try:
+                # Try relative import first
+                from .terminology_db import get_terminology_database
+            except ImportError:
+                # Fall back to absolute import (when installed as package)
+                from bcxlftranslator.terminology_db import get_terminology_database
+            
             try:
                 if db_path:
                     get_terminology_database(db_path)
@@ -393,7 +404,12 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
                     
                     # Add attribution note if requested
                     if add_attribution:
-                        from bcxlftranslator.note_generation import add_note_to_trans_unit, generate_attribution_note
+                        try:
+                            # Try relative import first
+                            from .note_generation import add_note_to_trans_unit, generate_attribution_note
+                        except ImportError:
+                            # Fall back to absolute import (when installed as package)
+                            from bcxlftranslator.note_generation import add_note_to_trans_unit, generate_attribution_note
                         
                         # Determine the source for the note
                         if terminology_used:
@@ -413,7 +429,13 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
         stats = stats_collector.get_statistics()
         
         # Print statistics
-        from bcxlftranslator.statistics_reporting import StatisticsReporter
+        try:
+            # Try relative import first
+            from .statistics_reporting import StatisticsReporter
+        except ImportError:
+            # Fall back to absolute import (when installed as package)
+            from bcxlftranslator.statistics_reporting import StatisticsReporter
+        
         reporter = StatisticsReporter()
         reporter.print_statistics(stats)
 
@@ -445,7 +467,12 @@ def terminology_lookup(source_text, target_lang_code):
         target_lang = target_lang_code.split('-')[0].lower() if '-' in target_lang_code else target_lang_code.lower()
 
         # Get the terminology database singleton
-        from bcxlftranslator.terminology_db import get_terminology_database
+        try:
+            # Try relative import first
+            from .terminology_db import get_terminology_database
+        except ImportError:
+            # Fall back to absolute import (when installed as package)
+            from bcxlftranslator.terminology_db import get_terminology_database
         
         db = get_terminology_database()
         if db is None:

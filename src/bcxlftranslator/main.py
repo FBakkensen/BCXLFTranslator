@@ -7,6 +7,7 @@ from googletrans import Translator, LANGUAGES
 import os # Added for path checking
 import asyncio
 import aiohttp
+import copy
 
 # --- Configuration ---
 DELAY_BETWEEN_REQUESTS = 0.5  # increased from 1.0 to 2.0 seconds to reduce rate limiting
@@ -234,6 +235,19 @@ def copy_attributes(elem, ns):
     attrs.update(xml_attrs)
     return attrs
 
+def strip_namespace(elem):
+    elem.tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+    # Remove namespace from attributes, but preserve xml:space
+    new_attrib = {}
+    for k, v in elem.attrib.items():
+        if k == '{http://www.w3.org/XML/1998/namespace}space':
+            new_attrib[k] = v  # Preserve xml:space
+        else:
+            new_attrib[k.split('}')[-1] if '}' in k else k] = v
+    elem.attrib = new_attrib
+    for child in elem:
+        strip_namespace(child)
+
 async def translate_xliff(input_file, output_file, add_attribution=True, use_terminology=False, highlight_terms=False, db_path=None):
     """
     Main translation function - googletrans 4.0.2 version using async context manager
@@ -281,7 +295,8 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
         # Find the target language
         file_elem = root.find(f"{ns}file")
         if file_elem is None:
-            print("Error: No file element found in XLIFF.")
+            print(f"Error: No file element found in XLIFF. Root tag: {root.tag}, Namespace used: '{ns}'")
+            print("Children tags:", [child.tag for child in root])
             return stats_collector  # Return empty stats instead of None
 
         target_lang = file_elem.get("target-language", "")
@@ -440,7 +455,71 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
         reporter.print_statistics(stats)
 
         # Write the translated XLIFF to the output file
-        tree.write(output_file, encoding="utf-8", xml_declaration=True)
+        try:
+            # Try to use lxml for better namespace handling if available
+            try:
+                from lxml import etree
+                print("Using lxml for namespace preservation.")
+                # Convert ElementTree to string
+                xml_str = ET.tostring(root, encoding='utf-8')
+                lxml_root = etree.fromstring(xml_str)
+                # Remove all namespace prefixes (force default namespace)
+                for elem in lxml_root.iter():
+                    if not hasattr(elem.tag, 'find'):
+                        continue
+                    if elem.tag.startswith('{'):
+                        uri, local = elem.tag[1:].split('}')
+                        elem.tag = local
+                # Register the default namespace
+                default_ns = root.tag.split('}')[0][1:]
+                nsmap = {None: default_ns}
+                new_root = etree.Element('xliff', nsmap=nsmap)
+                # Copy attributes from original root
+                for k, v in lxml_root.attrib.items():
+                    new_root.set(k, v)
+                # Move children to new root
+                for child in lxml_root:
+                    new_root.append(child)
+                tree_lxml = etree.ElementTree(new_root)
+                tree_lxml.write(output_file, encoding="utf-8", xml_declaration=True, pretty_print=True)
+                print("lxml write complete.")
+            except ImportError:
+                print("lxml not available; using ElementTree fallback.")
+                # Deep copy and strip namespaces
+                clean_root = copy.deepcopy(root)
+                strip_namespace(clean_root)
+                # Set correct default namespace on root
+                clean_root.set('xmlns', 'urn:oasis:names:tc:xliff:document:1.2')
+                clean_tree = ET.ElementTree(clean_root)
+                clean_tree.write(output_file, encoding="utf-8", xml_declaration=True)
+                print("Wrote cleaned XLIFF without prefixes using ElementTree fallback.")
+            except Exception as e:
+                print(f"Exception in lxml branch: {e}. Using regex fallback.")
+                import re
+                tree.write(output_file, encoding="utf-8", xml_declaration=True)
+                with open(output_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                # Remove ns0: from opening and closing tags, even with whitespace, newlines, or attributes
+                content = re.sub(r'<(/?)\s*ns0:', r'<\1', content, flags=re.MULTILINE)
+                # Remove xmlns:ns0 definitions (with possible whitespace)
+                content = re.sub(r'\s+xmlns:ns0="[^"]*"', '', content)
+                # Remove any leftover empty xmlns attributes (e.g., xmlns:ns0="")
+                content = re.sub(r'\s+xmlns:ns0=""', '', content)
+                # Remove any remaining xmlns attributes with empty value
+                content = re.sub(r'\s+xmlns=""', '', content)
+                # Ensure the root xliff tag has the correct default namespace (force replace the first <xliff ...>)
+                content = re.sub(r'<xliff(\s|>)', r'<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2"\1', content, count=1)
+                # Optionally clean up double spaces
+                content = re.sub(r'\s{2,}', ' ', content)
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                print("Warning: Could not fully preserve namespace via lxml; applied string-based fallback.")
+                print('--- OUTPUT FILE CONTENT (regex fallback) ---')
+                print(content)
+                print('---------------------------------------------')
+        except Exception as e:
+            print(f"Error writing XLIFF output: {e}")
+            raise
         print(f"Translated XLIFF saved to {output_file}")
         
         return stats  # Return statistics for testing and further processing
@@ -494,7 +573,6 @@ def extract_terminology_command(xliff_file, lang, filter_type=None, db_path=None
     """
     Command function for terminology extraction. Now supports advanced options for TDD Step 8.5.
     """
-    import xml.etree.ElementTree as ET
     try:
         # Import here to allow patching in tests
         import src.bcxlftranslator.terminology_db as terminology_db

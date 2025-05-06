@@ -451,6 +451,47 @@ async def test_translation_with_terminology(monkeypatch, tmp_path):
                     
             tree.write(output_file, encoding="utf-8", xml_declaration=True)
 
+@pytest.mark.asyncio
+async def test_namespace_preservation():
+    """
+    Given an XLIFF file with a default namespace (no prefix)
+    When the translate_xliff function is called
+    Then it should preserve the original namespace structure without adding prefixes
+    """
+    import tempfile
+    import os
+    from unittest.mock import patch, Mock
+
+    input_content = '''<?xml version="1.0" encoding="utf-8"?>\n<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n  <file datatype="xml" source-language="en-US" target-language="da-DK" original="test">\n    <body>\n      <trans-unit id="1" translate="yes">\n        <source>Hello World</source>\n        <target>Hej Verden</target>\n      </trans-unit>\n    </body>\n  </file>\n</xliff>'''
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        input_file = os.path.join(temp_dir, 'test_namespace.xlf')
+        with open(input_file, 'w', encoding='utf-8') as f:
+            f.write(input_content)
+        output_file = os.path.join(temp_dir, 'test_namespace_output.xlf')
+        with patch('bcxlftranslator.main.translate_with_retry') as mock_translate:
+            mock_translate.return_value = Mock(text="Hej Verden")
+            from bcxlftranslator.main import translate_xliff
+            try:
+                result = await translate_xliff(input_file, output_file)
+                print(f'translate_xliff result: {result}')
+            except Exception as e:
+                print(f'Exception in translate_xliff: {e}')
+                import traceback
+                traceback.print_exc()
+        assert os.path.exists(output_file)
+        with open(output_file, 'r', encoding='utf-8') as f:
+            output_content = f.read()
+        print('--- OUTPUT FILE CONTENT ---')
+        print(output_content)
+        print('---------------------------')
+        assert '<xliff ' in output_content, "Root element should not have a namespace prefix"
+        assert '<ns0:xliff ' not in output_content, "Root element should not have 'ns0' prefix"
+        assert '<file ' in output_content, "File element should not have a namespace prefix"
+        assert '<trans-unit ' in output_content, "Trans-unit element should not have a namespace prefix"
+        assert '<source>' in output_content, "Source element should not have a namespace prefix"
+        assert '<target' in output_content, "Target element should not have a namespace prefix"
+
 @pytest.fixture(autouse=True)
 def close_db_after_test():
     yield

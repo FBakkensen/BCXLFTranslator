@@ -491,6 +491,23 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
                 # Set correct default namespace on root
                 clean_root.set('xmlns', 'urn:oasis:names:tc:xliff:document:1.2')
                 clean_tree = ET.ElementTree(clean_root)
+                # Add new helper function for pretty-printing XML using ElementTree
+                def indent(element, indent_level=0):
+                    i = "\n" + "  " * indent_level
+                    if len(element):
+                        if not element.text or not element.text.strip():
+                            element.text = i + "  "
+                        for child in element:
+                            indent(child, indent_level + 1)
+                            if not child.tail or not child.tail.strip():
+                                child.tail = i + "  "
+                        if not child.tail or not child.tail.strip():
+                            child.tail = i
+                    else:
+                        if indent_level and (not element.tail or not element.tail.strip()):
+                            element.tail = i
+                # In translate_xliff ElementTree fallback, add indentation before write
+                indent(clean_root)
                 clean_tree.write(output_file, encoding="utf-8", xml_declaration=True)
                 print("Wrote cleaned XLIFF without prefixes using ElementTree fallback.")
             except Exception as e:

@@ -492,6 +492,39 @@ async def test_namespace_preservation():
         assert '<source>' in output_content, "Source element should not have a namespace prefix"
         assert '<target' in output_content, "Target element should not have a namespace prefix"
 
+@pytest.mark.asyncio
+async def test_closing_tag_formatting(test_files):
+    """
+    Given a trans-unit element in the XLF file
+    When the translate_xliff function is called
+    Then the closing </trans-unit> tag should be on its own line with no other content and properly indented
+    """
+    import re  # Import re for regex usage
+    input_file, output_file = test_files
+    
+    with patch('bcxlftranslator.main.translate_with_retry') as mock_translate:
+        mock_translate.return_value = Mock(text="Mocked Translation")
+        
+        stats = await translate_xliff(input_file, output_file)
+        
+        with open(output_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Use regex to find trans-unit elements and check closing tag formatting
+        matches = list(re.finditer(r'<trans-unit[^>]*>', content))
+        if matches:
+            for match in matches:
+                start_pos = match.end()
+                end_tag_match = re.search(r'</trans-unit>', content[start_pos:])
+                if end_tag_match:
+                    end_pos = start_pos + end_tag_match.start()
+                    unit_content = content[match.start():end_pos + len('</trans-unit>')]
+                    lines = unit_content.splitlines()
+                    last_line = lines[-1].strip()
+                    assert last_line == '</trans-unit>', f"Closing tag not properly formatted: {last_line}"
+        else:
+            assert False, "No trans-unit elements found in output"
+
 @pytest.fixture(autouse=True)
 def close_db_after_test():
     yield

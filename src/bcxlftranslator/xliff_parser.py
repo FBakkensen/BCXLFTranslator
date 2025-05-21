@@ -168,6 +168,172 @@ def extract_header_footer(file_path):
 
     return header, footer
 
+def trans_units_to_text(trans_units, indent_level=2):
+    """
+    Converts a list of processed trans-unit XML Element objects back to properly formatted text,
+    preserving all attributes and maintaining consistent indentation.
+
+    Args:
+        trans_units (list): List of xml.etree.ElementTree.Element objects representing trans-units.
+        indent_level (int, optional): Number of spaces to use for indentation. Defaults to 2.
+
+    Returns:
+        str: Properly formatted text representation of the trans-units.
+
+    Raises:
+        TypeError: If trans_units is not a list or contains non-Element objects.
+    """
+    if not isinstance(trans_units, list):
+        raise TypeError("trans_units must be a list")
+
+    if not all(isinstance(tu, ET.Element) for tu in trans_units):
+        raise TypeError("All items in trans_units must be xml.etree.ElementTree.Element objects")
+
+    # If the list is empty, return an empty string
+    if not trans_units:
+        return ""
+
+    # Create a string buffer for the output
+    output = []
+
+    # Base indentation for trans-units (usually 2 levels deep in XLIFF files)
+    base_indent = ' ' * indent_level * 2
+
+    # XML namespace handling
+    ns_map = {
+        'http://www.w3.org/XML/1998/namespace': 'xml',
+        'urn:oasis:names:tc:xliff:document:1.2': 'xliff'
+    }
+
+    for tu in trans_units:
+        # Convert the trans-unit to string with proper indentation
+        # Handle attributes, including namespaced ones
+        attrs = []
+        for k, v in tu.attrib.items():
+            # Handle namespaced attributes like {http://www.w3.org/XML/1998/namespace}space
+            if k.startswith('{'):
+                ns_uri, local_name = k[1:].split('}', 1)
+                if ns_uri in ns_map:
+                    attrs.append(f'{ns_map[ns_uri]}:{local_name}="{v}"')
+                else:
+                    # Use the full namespace if not in our map
+                    attrs.append(f'{{{ns_uri}}}{local_name}="{v}"')
+            else:
+                attrs.append(f'{k}="{v}"')
+
+        attr_str = ' '.join(attrs)
+        if attr_str:
+            output.append(f"{base_indent}<trans-unit {attr_str}>")
+        else:
+            output.append(f"{base_indent}<trans-unit>")
+
+        # Process child elements with increased indentation
+        child_indent = base_indent + ' ' * 2
+
+        # Process each child element (source, target, notes, etc.)
+        for child in tu:
+            # Get the local name without namespace
+            if '}' in child.tag:
+                ns_uri, tag_name = child.tag[1:].split('}', 1)
+                # Use namespace prefix if available
+                if ns_uri in ns_map:
+                    tag_name = f"{ns_map[ns_uri]}:{tag_name}"
+            else:
+                tag_name = child.tag
+
+            # Process attributes, including namespaced ones
+            child_attrs = []
+            for k, v in child.attrib.items():
+                if k.startswith('{'):
+                    ns_uri, local_name = k[1:].split('}', 1)
+                    if ns_uri in ns_map:
+                        child_attrs.append(f'{ns_map[ns_uri]}:{local_name}="{v}"')
+                    else:
+                        child_attrs.append(f'{{{ns_uri}}}{local_name}="{v}"')
+                else:
+                    child_attrs.append(f'{k}="{v}"')
+
+            child_attr_str = ' '.join(child_attrs)
+
+            # Handle the element content
+            if child.text is not None and child.text.strip():
+                # Element with non-empty text content
+                if child_attr_str:
+                    output.append(f"{child_indent}<{tag_name} {child_attr_str}>{child.text}</{tag_name}>")
+                else:
+                    output.append(f"{child_indent}<{tag_name}>{child.text}</{tag_name}>")
+            else:
+                # Empty element or element with only whitespace
+                if len(child) == 0:  # No children
+                    if child_attr_str:
+                        # Use self-closing tag for empty elements with attributes
+                        output.append(f"{child_indent}<{tag_name} {child_attr_str}/>")
+                    else:
+                        # Use self-closing tag for empty elements
+                        output.append(f"{child_indent}<{tag_name}/>")
+                else:
+                    # Element with children but no text
+                    if child_attr_str:
+                        output.append(f"{child_indent}<{tag_name} {child_attr_str}>")
+                    else:
+                        output.append(f"{child_indent}<{tag_name}>")
+
+            # Process any nested elements (uncommon but possible)
+            if len(child) > 0:
+                gc_indent = child_indent + ' ' * 2
+                for grandchild in child:
+                    # Get the local name without namespace
+                    if '}' in grandchild.tag:
+                        ns_uri, gc_tag = grandchild.tag[1:].split('}', 1)
+                        if ns_uri in ns_map:
+                            gc_tag = f"{ns_map[ns_uri]}:{gc_tag}"
+                    else:
+                        gc_tag = grandchild.tag
+
+                    # Process attributes
+                    gc_attrs = []
+                    for k, v in grandchild.attrib.items():
+                        if k.startswith('{'):
+                            ns_uri, local_name = k[1:].split('}', 1)
+                            if ns_uri in ns_map:
+                                gc_attrs.append(f'{ns_map[ns_uri]}:{local_name}="{v}"')
+                            else:
+                                gc_attrs.append(f'{{{ns_uri}}}{local_name}="{v}"')
+                        else:
+                            gc_attrs.append(f'{k}="{v}"')
+
+                    gc_attr_str = ' '.join(gc_attrs)
+
+                    if grandchild.text is not None and grandchild.text.strip():
+                        if gc_attr_str:
+                            output.append(f"{gc_indent}<{gc_tag} {gc_attr_str}>{grandchild.text}</{gc_tag}>")
+                        else:
+                            output.append(f"{gc_indent}<{gc_tag}>{grandchild.text}</{gc_tag}>")
+                    else:
+                        if len(grandchild) == 0:  # No children
+                            if gc_attr_str:
+                                output.append(f"{gc_indent}<{gc_tag} {gc_attr_str}/>")
+                            else:
+                                output.append(f"{gc_indent}<{gc_tag}/>")
+                        else:
+                            # Element with children but no text
+                            if gc_attr_str:
+                                output.append(f"{gc_indent}<{gc_tag} {gc_attr_str}>")
+                            else:
+                                output.append(f"{gc_indent}<{gc_tag}>")
+
+                            # For deeper nesting, we would need a recursive approach
+                            # This implementation handles up to 3 levels of nesting
+
+                # Close the parent element if it has children
+                output.append(f"{child_indent}</{tag_name}>")
+
+        # Close the trans-unit tag
+        output.append(f"{base_indent}</trans-unit>")
+
+    # Join all lines with newlines
+    return '\n'.join(output)
+
 def parse_xliff_file(file_path):
     """
     Parses an XLIFF file to extract translation units.

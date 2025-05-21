@@ -4,7 +4,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units, extract_trans_units_from_file
+from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units, extract_trans_units_from_file, trans_units_to_text
 from bcxlftranslator.exceptions import EmptyXliffError, InvalidXliffError
 
 # Path to the example file
@@ -253,3 +253,68 @@ def test_extract_trans_units_with_namespaced_trans_units():
     finally:
         # Clean up the temporary file
         os.unlink(temp_file_path)
+
+def test_trans_units_to_text_with_example_file():
+    """
+    Test that the trans_units_to_text function correctly converts trans-units
+    from the example file back to properly formatted text.
+    """
+    # Extract trans-units
+    trans_units = extract_trans_units_from_file(EXAMPLE_FILE)
+
+    # Convert trans-units to text
+    text = trans_units_to_text(trans_units)
+
+    # Verify the text contains expected content
+    assert '<trans-unit id=' in text
+    assert 'Attached To SystemID' in text
+    assert 'state="needs-translation"' in text
+    assert 'from="Developer" annotates="general" priority="2"' in text
+
+    # Verify proper indentation
+    lines = text.split('\n')
+    for line in lines:
+        if '<trans-unit' in line:
+            assert line.startswith('  ')  # Base indentation
+        if 'source' in line or 'target' in line or 'note' in line:
+            assert line.startswith('    ')  # Child indentation
+
+    # Verify all trans-units are included
+    assert text.count('<trans-unit') == 4
+    assert text.count('</trans-unit>') == 4
+
+def test_trans_units_to_text_with_empty_list():
+    """
+    Test that the trans_units_to_text function returns an empty string
+    when given an empty list.
+    """
+    assert trans_units_to_text([]) == ""
+
+def test_trans_units_to_text_with_invalid_input():
+    """
+    Test that the trans_units_to_text function raises TypeError
+    when given invalid input.
+    """
+    with pytest.raises(TypeError, match="trans_units must be a list"):
+        trans_units_to_text("not a list")
+
+    with pytest.raises(TypeError, match="All items in trans_units must be xml.etree.ElementTree.Element objects"):
+        trans_units_to_text([1, 2, 3])
+
+def test_trans_units_to_text_with_custom_indentation():
+    """
+    Test that the trans_units_to_text function correctly applies custom indentation.
+    """
+    # Extract trans-units
+    trans_units = extract_trans_units_from_file(EXAMPLE_FILE)
+
+    # Convert trans-units to text with custom indentation
+    text = trans_units_to_text(trans_units, indent_level=3)
+
+    # Verify proper indentation
+    lines = text.split('\n')
+    for line in lines:
+        if '<trans-unit' in line:
+            assert line.startswith('      ')  # 3 * 2 spaces
+        if 'source' in line or 'target' in line or 'note' in line:
+            assert line.startswith('        ')  # (3 * 2) + 2 spaces

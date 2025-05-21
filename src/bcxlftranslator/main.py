@@ -9,6 +9,14 @@ import asyncio
 import aiohttp
 import copy
 
+# Import the XLIFF parser functions for header/footer preservation
+try:
+    # Try relative import first
+    from .xliff_parser import extract_header_footer, extract_trans_units_from_file, trans_units_to_text
+except ImportError:
+    # Fall back to absolute import (when installed as package)
+    from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units_from_file, trans_units_to_text
+
 # --- Configuration ---
 DELAY_BETWEEN_REQUESTS = 0.5  # increased from 1.0 to 2.0 seconds to reduce rate limiting
 MAX_RETRIES = 3
@@ -251,6 +259,7 @@ def strip_namespace(elem):
 async def translate_xliff(input_file, output_file, add_attribution=True):
     """
     Main translation function - googletrans 4.0.2 version using async context manager
+    with header/footer preservation approach
 
     Args:
         input_file (str): Path to the input XLIFF file
@@ -280,7 +289,18 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         if output_dir and not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        # Parse the XLIFF file
+        # Step 1: Extract header and footer from the input file
+        print(f"Extracting header and footer from {input_file}")
+        header, footer = extract_header_footer(input_file)
+        print("Header and footer extracted successfully.")
+
+        # Step 2: Extract trans-units for processing
+        print("Extracting trans-units for processing")
+        trans_units = extract_trans_units_from_file(input_file)
+        total_units = len(trans_units)
+        print(f"Found {total_units} translation units.")
+
+        # Parse the XLIFF file to get language information
         tree = ET.parse(input_file)
         root = tree.getroot()
 
@@ -308,16 +328,11 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         if target_lang_code not in LANGUAGES:
             print(f"Warning: Target language '{target_lang_code}' not in supported languages list. Trying anyway...")
 
-
-
-        # Find all translation units
-        trans_units = root.findall(f".//{ns}trans-unit")
-        total_units = len(trans_units)
-        print(f"Found {total_units} translation units.")
-
         # Translation cache to avoid re-translating the same text
         translation_cache = {}
 
+        # Step 3: Process the trans-units
+        print("Processing trans-units...")
         # Create a translator instance using async context manager
         async with Translator() as translator:
             # Process each translation unit
@@ -388,6 +403,19 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         report_progress(total_units, total_units)
         print("\nTranslation complete.")
 
+        # Step 4: Convert processed trans-units back to text
+        print("Converting processed trans-units back to text")
+        trans_units_text = trans_units_to_text(trans_units)
+        print("Trans-units converted successfully.")
+
+        # Step 5: Combine header, processed trans-units, and footer to create the output file
+        print(f"Creating output file: {output_file}")
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(header)
+            f.write(trans_units_text)
+            f.write(footer)
+        print(f"Output file created successfully: {output_file}")
+
         # Calculate and display statistics
         stats = stats_collector.get_statistics()
 
@@ -401,91 +429,6 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
 
         reporter = StatisticsReporter()
         reporter.print_statistics(stats)
-
-        # Write the translated XLIFF to the output file
-        try:
-            # Try to use lxml for better namespace handling if available
-            try:
-                from lxml import etree
-                print("Using lxml for namespace preservation.")
-                # Convert ElementTree to string
-                xml_str = ET.tostring(root, encoding='utf-8')
-                lxml_root = etree.fromstring(xml_str)
-                # Remove all namespace prefixes (force default namespace)
-                for elem in lxml_root.iter():
-                    if not hasattr(elem.tag, 'find'):
-                        continue
-                    if elem.tag.startswith('{'):
-                        uri, local = elem.tag[1:].split('}')
-                        elem.tag = local
-                # Register the default namespace
-                default_ns = root.tag.split('}')[0][1:]
-                nsmap = {None: default_ns}
-                new_root = etree.Element('xliff', nsmap=nsmap)
-                # Copy attributes from original root
-                for k, v in lxml_root.attrib.items():
-                    new_root.set(k, v)
-                # Move children to new root
-                for child in lxml_root:
-                    new_root.append(child)
-                tree_lxml = etree.ElementTree(new_root)
-                tree_lxml.write(output_file, encoding="utf-8", xml_declaration=True, pretty_print=True)
-                print("lxml write complete.")
-            except ImportError:
-                print("lxml not available; using ElementTree fallback.")
-                # Deep copy and strip namespaces
-                clean_root = copy.deepcopy(root)
-                strip_namespace(clean_root)
-                # Set correct default namespace on root
-                clean_root.set('xmlns', 'urn:oasis:names:tc:xliff:document:1.2')
-                clean_tree = ET.ElementTree(clean_root)
-                # Add new helper function for pretty-printing XML using ElementTree
-                def indent(element, indent_level=0):
-                    i = "\n" + "  " * indent_level
-                    if len(element):
-                        if not element.text or not element.text.strip():
-                            element.text = i + "  "
-                        for child in element:
-                            indent(child, indent_level + 1)
-                            if not child.tail or not child.tail.strip():
-                                child.tail = i + "  "
-                        if not child.tail or not child.tail.strip():
-                            child.tail = i
-                    else:
-                        if indent_level and (not element.tail or not element.tail.strip()):
-                            element.tail = i
-                # In translate_xliff ElementTree fallback, add indentation before write
-                indent(clean_root)
-                clean_tree.write(output_file, encoding="utf-8", xml_declaration=True)
-                print("Wrote cleaned XLIFF without prefixes using ElementTree fallback.")
-            except Exception as e:
-                print(f"Exception in lxml branch: {e}. Using regex fallback.")
-                import re
-                tree.write(output_file, encoding="utf-8", xml_declaration=True)
-                with open(output_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                # Remove ns0: from opening and closing tags, even with whitespace, newlines, or attributes
-                content = re.sub(r'<(/?)\s*ns0:', r'<\1', content, flags=re.MULTILINE)
-                # Remove xmlns:ns0 definitions (with possible whitespace)
-                content = re.sub(r'\s+xmlns:ns0="[^"]*"', '', content)
-                # Remove any leftover empty xmlns attributes (e.g., xmlns:ns0="")
-                content = re.sub(r'\s+xmlns:ns0=""', '', content)
-                # Remove any remaining xmlns attributes with empty value
-                content = re.sub(r'\s+xmlns=""', '', content)
-                # Ensure the root xliff tag has the correct default namespace (force replace the first <xliff ...>)
-                content = re.sub(r'<xliff(\s|>)', r'<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2"\1', content, count=1)
-                # Optionally clean up double spaces
-                content = re.sub(r'\s{2,}', ' ', content)
-                with open(output_file, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                print("Warning: Could not fully preserve namespace via lxml; applied string-based fallback.")
-                print('--- OUTPUT FILE CONTENT (regex fallback) ---')
-                print(content)
-                print('---------------------------------------------')
-        except Exception as e:
-            print(f"Error writing XLIFF output: {e}")
-            raise
-        print(f"Translated XLIFF saved to {output_file}")
 
         return stats  # Return statistics for testing and further processing
 

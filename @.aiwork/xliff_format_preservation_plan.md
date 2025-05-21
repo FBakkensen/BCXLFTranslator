@@ -16,7 +16,7 @@ This plan outlines the steps needed to ensure XLIFF files maintain the exact hea
    - **Prompt**: "Implement a function called `trans_units_to_text` that converts a list of processed trans-unit XML Element objects back to properly formatted text, preserving all attributes and maintaining consistent indentation. Use the format in `examples\Example.da-dk.xlf` as a reference."
    - **Verification**: The function correctly converts trans-units to text with proper formatting. Compare the output with the original formatting in `examples\Example.da-dk.xlf`. Run all tests to ensure functionality works correctly.
 
-4. [ ] **Modify the main translation function to use the new approach**
+4. [x] **Modify the main translation function to use the new approach**
    - **Prompt**: "Update the `translate_xliff` function to use the new header/footer preservation approach. It should extract the header and footer, process only the trans-units, and then combine them back together to create the output file. Test with `examples\Example.da-dk.xlf`."
    - **Verification**: The function successfully translates `examples\Example.da-dk.xlf` while preserving the exact header and footer. Compare the input and output files to confirm only the trans-units were modified. Run all tests to ensure functionality works correctly.
 

@@ -199,25 +199,21 @@ def trans_units_to_text(trans_units, indent_level=2):
     # Base indentation for trans-units (usually 2 levels deep in XLIFF files)
     base_indent = ' ' * indent_level * 2
 
-    # XML namespace handling
-    ns_map = {
-        'http://www.w3.org/XML/1998/namespace': 'xml',
-        'urn:oasis:names:tc:xliff:document:1.2': 'xliff'
-    }
+    # XML namespace handling for xml:space attribute only
+    xml_ns = 'http://www.w3.org/XML/1998/namespace'
 
     for tu in trans_units:
         # Convert the trans-unit to string with proper indentation
         # Handle attributes, including namespaced ones
         attrs = []
         for k, v in tu.attrib.items():
-            # Handle namespaced attributes like {http://www.w3.org/XML/1998/namespace}space
-            if k.startswith('{'):
-                ns_uri, local_name = k[1:].split('}', 1)
-                if ns_uri in ns_map:
-                    attrs.append(f'{ns_map[ns_uri]}:{local_name}="{v}"')
-                else:
-                    # Use the full namespace if not in our map
-                    attrs.append(f'{{{ns_uri}}}{local_name}="{v}"')
+            # Handle xml:space attribute specially
+            if k == f'{{{xml_ns}}}space':
+                attrs.append(f'xml:space="{v}"')
+            # Handle other namespaced attributes by removing the namespace
+            elif k.startswith('{'):
+                _, local_name = k[1:].split('}', 1)
+                attrs.append(f'{local_name}="{v}"')
             else:
                 attrs.append(f'{k}="{v}"')
 
@@ -234,22 +230,20 @@ def trans_units_to_text(trans_units, indent_level=2):
         for child in tu:
             # Get the local name without namespace
             if '}' in child.tag:
-                ns_uri, tag_name = child.tag[1:].split('}', 1)
-                # Use namespace prefix if available
-                if ns_uri in ns_map:
-                    tag_name = f"{ns_map[ns_uri]}:{tag_name}"
+                _, tag_name = child.tag[1:].split('}', 1)
             else:
                 tag_name = child.tag
 
             # Process attributes, including namespaced ones
             child_attrs = []
             for k, v in child.attrib.items():
-                if k.startswith('{'):
-                    ns_uri, local_name = k[1:].split('}', 1)
-                    if ns_uri in ns_map:
-                        child_attrs.append(f'{ns_map[ns_uri]}:{local_name}="{v}"')
-                    else:
-                        child_attrs.append(f'{{{ns_uri}}}{local_name}="{v}"')
+                # Handle xml:space attribute specially
+                if k == f'{{{xml_ns}}}space':
+                    child_attrs.append(f'xml:space="{v}"')
+                # Handle other namespaced attributes by removing the namespace
+                elif k.startswith('{'):
+                    _, local_name = k[1:].split('}', 1)
+                    child_attrs.append(f'{local_name}="{v}"')
                 else:
                     child_attrs.append(f'{k}="{v}"')
 
@@ -258,10 +252,12 @@ def trans_units_to_text(trans_units, indent_level=2):
             # Handle the element content
             if child.text is not None and child.text.strip():
                 # Element with non-empty text content
+                # Escape special characters in text
+                escaped_text = child.text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("'", "&apos;")
                 if child_attr_str:
-                    output.append(f"{child_indent}<{tag_name} {child_attr_str}>{child.text}</{tag_name}>")
+                    output.append(f"{child_indent}<{tag_name} {child_attr_str}>{escaped_text}</{tag_name}>")
                 else:
-                    output.append(f"{child_indent}<{tag_name}>{child.text}</{tag_name}>")
+                    output.append(f"{child_indent}<{tag_name}>{escaped_text}</{tag_name}>")
             else:
                 # Empty element or element with only whitespace
                 if len(child) == 0:  # No children
@@ -284,31 +280,32 @@ def trans_units_to_text(trans_units, indent_level=2):
                 for grandchild in child:
                     # Get the local name without namespace
                     if '}' in grandchild.tag:
-                        ns_uri, gc_tag = grandchild.tag[1:].split('}', 1)
-                        if ns_uri in ns_map:
-                            gc_tag = f"{ns_map[ns_uri]}:{gc_tag}"
+                        _, gc_tag = grandchild.tag[1:].split('}', 1)
                     else:
                         gc_tag = grandchild.tag
 
                     # Process attributes
                     gc_attrs = []
                     for k, v in grandchild.attrib.items():
-                        if k.startswith('{'):
-                            ns_uri, local_name = k[1:].split('}', 1)
-                            if ns_uri in ns_map:
-                                gc_attrs.append(f'{ns_map[ns_uri]}:{local_name}="{v}"')
-                            else:
-                                gc_attrs.append(f'{{{ns_uri}}}{local_name}="{v}"')
+                        # Handle xml:space attribute specially
+                        if k == f'{{{xml_ns}}}space':
+                            gc_attrs.append(f'xml:space="{v}"')
+                        # Handle other namespaced attributes by removing the namespace
+                        elif k.startswith('{'):
+                            _, local_name = k[1:].split('}', 1)
+                            gc_attrs.append(f'{local_name}="{v}"')
                         else:
                             gc_attrs.append(f'{k}="{v}"')
 
                     gc_attr_str = ' '.join(gc_attrs)
 
                     if grandchild.text is not None and grandchild.text.strip():
+                        # Escape special characters in text
+                        escaped_text = grandchild.text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("'", "&apos;")
                         if gc_attr_str:
-                            output.append(f"{gc_indent}<{gc_tag} {gc_attr_str}>{grandchild.text}</{gc_tag}>")
+                            output.append(f"{gc_indent}<{gc_tag} {gc_attr_str}>{escaped_text}</{gc_tag}>")
                         else:
-                            output.append(f"{gc_indent}<{gc_tag}>{grandchild.text}</{gc_tag}>")
+                            output.append(f"{gc_indent}<{gc_tag}>{escaped_text}</{gc_tag}>")
                     else:
                         if len(grandchild) == 0:  # No children
                             if gc_attr_str:

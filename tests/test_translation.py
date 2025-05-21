@@ -90,9 +90,6 @@ async def test_translation_process(test_files):
                         parts = [p.strip() for p in target.text.split(',')]
                         assert all(len(p) > 0 and p[0].isupper() for p in parts)
 
-    # Terminology database functionality has been removed
-    # No cleanup needed
-
 @pytest.mark.asyncio
 async def test_translation_error_handling(test_files):
     """
@@ -333,7 +330,7 @@ async def test_translation_state_attributes():
     temp_output = temp_input + '.out.xlf'
 
     try:
-        # Run translation (terminology functionality has been removed)
+        # Run translation
         await translate_xliff(temp_input, temp_output)
 
         # Parse and verify the translated output
@@ -498,11 +495,6 @@ async def test_closing_tag_formatting(test_files):
                     assert '</trans-unit>' in lines[-1], f"Closing tag not found in last line: {lines[-1]}"
         else:
             assert False, "No trans-unit elements found in output"
-
-@pytest.fixture(autouse=True)
-def close_db_after_test():
-    # Terminology database functionality has been removed
-    yield
 
 @pytest.fixture(autouse=True)
 def cleanup():

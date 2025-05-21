@@ -8,6 +8,7 @@ import os # Added for path checking
 import asyncio
 import aiohttp
 import copy
+import tempfile # Added for temporary file creation
 
 # Import the XLIFF parser functions for header/footer preservation
 try:
@@ -290,7 +291,8 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
 
     Args:
         input_file (str): Path to the input XLIFF file
-        output_file (str): Path to save the translated XLIFF file
+        output_file (str): Path to save the translated XLIFF file. If same as input_file,
+                          performs in-place translation using a temporary file.
         add_attribution (bool): Whether to add attribution notes to translation units
 
     Returns:
@@ -305,16 +307,30 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         from bcxlftranslator.statistics import StatisticsCollector
     stats_collector = StatisticsCollector()
 
+    # Check if in-place translation is requested (input_file == output_file)
+    is_inplace = input_file == output_file
+    temp_file = None
+    actual_output_file = output_file
+
     try:
         # Check if input file exists
         if not os.path.exists(input_file):
             print(f"Error: Input file '{input_file}' not found.")
             return stats_collector  # Return empty stats instead of None
 
-        # Create output directory if it doesn't exist
-        output_dir = os.path.dirname(output_file)
-        if output_dir and not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        # If in-place translation, create a temporary file
+        if is_inplace:
+            # Create a temporary file with the same extension as the input file
+            fd, temp_file = tempfile.mkstemp(suffix=os.path.splitext(input_file)[1])
+            os.close(fd)  # Close the file descriptor
+            actual_output_file = temp_file
+            print(f"In-place translation requested. Using temporary file: {temp_file}")
+
+        # Create output directory if it doesn't exist (only for non-in-place translation)
+        if not is_inplace:
+            output_dir = os.path.dirname(output_file)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
 
         # Step 1: Extract header and footer from the input file
         print(f"Extracting header and footer from {input_file}")
@@ -397,6 +413,10 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                         try:
                             # Translate the text
                             result = await translate_with_retry(translator, source_text, target_lang_code, source_lang_code)
+                            if result is None:
+                                print(f"Warning: Translation failed for '{source_text}': No result returned")
+                                # Skip this unit rather than exiting
+                                continue
                             target_text = result.text
 
                             # Cache the translation
@@ -405,6 +425,11 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                             print(f"Warning: Translation failed for '{source_text}': {e}")
                             # Skip this unit rather than exiting
                             continue
+
+                    # Skip if translation failed
+                    if target_text is None:
+                        print(f"Warning: No translation result for '{source_text}'")
+                        continue
 
                     # Track Google Translate usage in statistics
                     stats_collector.track_translation("Google Translate",
@@ -443,16 +468,37 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         trans_units_text = trans_units_to_text(trans_units, indentation_patterns=indentation_patterns)
         print("Trans-units converted successfully.")
 
+        # Calculate statistics before writing to file
+        stats = stats_collector.get_statistics()
+
         # Step 5: Combine header, processed trans-units, and footer to create the output file
-        print(f"Creating output file: {output_file}")
-        with open(output_file, 'w', encoding='utf-8') as f:
+        print(f"Creating output file: {actual_output_file}")
+        with open(actual_output_file, 'w', encoding='utf-8') as f:
             f.write(header)
             f.write(trans_units_text)
             f.write(footer)
-        print(f"Output file created successfully: {output_file}")
+        print(f"Output file created successfully: {actual_output_file}")
 
-        # Calculate and display statistics
-        stats = stats_collector.get_statistics()
+        # If in-place translation was requested, only replace the original file if translations were performed
+        if is_inplace and temp_file and os.path.exists(temp_file):
+            if stats.total_count > 0:
+                try:
+                    # Replace the original file with the temporary file
+                    os.replace(temp_file, input_file)
+                    print(f"Successfully replaced original file with translated content: {input_file}")
+                    # Set temp_file to None to indicate it's been handled
+                    temp_file = None
+                except Exception as e:
+                    print(f"Error replacing original file: {e}")
+                    print(f"Translated content is available in temporary file: {temp_file}")
+                    # Don't delete the temp file so the user can recover the translation
+                    temp_file = None  # Set to None to prevent deletion in finally block
+                    # Return stats but don't continue processing
+                    return stats_collector
+            else:
+                print("No translations were performed. Original file will not be modified.")
+                # Set temp_file to None to indicate we're not using it
+                temp_file = None
 
         # Print statistics
         try:
@@ -471,7 +517,18 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         print(f"Error: {e}")
         import traceback
         traceback.print_exc()
+        # Do not replace the original file if an error occurred
+        temp_file = None  # Set to None to prevent deletion in finally block
         return stats_collector  # Return stats collector even on error
+    finally:
+        # Clean up temporary file if it exists
+        if temp_file and os.path.exists(temp_file):
+            try:
+                os.remove(temp_file)
+                print(f"Temporary file removed: {temp_file}")
+            except Exception as e:
+                print(f"Warning: Could not remove temporary file {temp_file}: {e}")
+                print("You may need to remove it manually.")
 
 def parse_xliff(*args, **kwargs):
     """

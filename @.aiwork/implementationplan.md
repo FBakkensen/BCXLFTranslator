@@ -4,9 +4,10 @@ This plan outlines the steps needed to implement in-place file translation for B
 
 ## Tasks
 
-1. [ ] **Modify the translate_xliff function to support in-place translation**
+1. [X] **Modify the translate_xliff function to support in-place translation**
    - Prompt: "Modify the translate_xliff function in src/bcxlftranslator/main.py to support in-place file translation by creating a temporary file for output and replacing the original file only after successful translation."
    - Verification: The function should create a temporary file, write the translated content to it, and then replace the original file only if translation is successful. If any errors occur, the original file should remain intact.
+   - Implementation: Added in-place translation support by detecting when input_file == output_file, creating a temporary file, and replacing the original file only after successful translation. Added comprehensive error handling to ensure the original file remains intact if any errors occur. Created unit tests to verify the functionality.
 
 2. [ ] **Update the command-line interface to support single-file mode**
    - Prompt: "Update the command-line interface in src/bcxlftranslator/main.py to support both the existing two-file mode and a new single-file mode where only an input file is provided."

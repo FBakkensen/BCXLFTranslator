@@ -44,10 +44,10 @@ This plan outlines the steps needed to ensure XLIFF files maintain the exact hea
     - **Prompt**: "Update the project documentation to explain the new header/footer preservation approach and its benefits for maintaining exact XLIFF formatting. Include `examples\Example.da-dk.xlf` as an example in the documentation."
     - **Verification**: The documentation clearly explains the new approach and provides examples of how it preserves the exact format using `examples\Example.da-dk.xlf`. Run all tests to ensure functionality works correctly.
 
-11. [ ] **Create an integration test with real-world XLIFF files**
+11. [x] **Create an integration test with real-world XLIFF files**
     - **Prompt**: "Create an integration test that uses real-world XLIFF files, including `examples\Example.da-dk.xlf`, to verify the entire translation process preserves the exact header and footer while correctly translating the content."
     - **Verification**: The integration test passes with various real-world XLIFF files, including `examples\Example.da-dk.xlf`, and the output files maintain the exact header and footer structure. Run all tests to ensure functionality works correctly.
 
-12. [ ] **Optimize performance for large XLIFF files**
+12. [x] **Optimize performance for large XLIFF files**
     - **Prompt**: "Optimize the header/footer extraction and trans-unit processing for performance with large XLIFF files, ensuring efficient memory usage and processing time. Benchmark with `examples\Example.da-dk.xlf` and larger variants."
     - **Verification**: The optimized code successfully processes `examples\Example.da-dk.xlf` and larger XLIFF files (>1MB) with acceptable performance. Run all tests to ensure functionality works correctly.

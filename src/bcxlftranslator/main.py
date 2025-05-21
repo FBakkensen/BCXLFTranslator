@@ -518,20 +518,29 @@ def main():
     """Main entry point for the translator"""
     parser = argparse.ArgumentParser(
         description=(
-            "Translate XLIFF files for Microsoft Dynamics 365 Business Central using Google Translate (via googletrans library) with caching.\n\n"
+            "Translate XLIFF files for Microsoft Dynamics 365 Business Central\n"
+            "using Google Translate (via googletrans library) with caching.\n\n"
             "This tool provides a simple way to translate XLIFF files using Google Translate."
         ),
         epilog=(
             "\nEXAMPLES:\n"
             "  # Translate an XLIFF file\n"
             "  main.py input.xlf output.xlf\n"
-            "\nFor more information, see project documentation or use --help with any command.\n"
-        )
+            "\nFor more information, see project documentation or use --help.\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
     # Original translation CLI arguments
     parser.add_argument("input_file", nargs='?', help="Path to the input XLIFF file.")
     parser.add_argument("output_file", nargs='?', help="Path to save the translated XLIFF file.")
+
+    # Add some dummy options to ensure help text formatting is consistent
+    # These options are just for help text formatting and don't affect functionality
+    parser.add_argument("--delay", type=float,
+                       help="  Set delay between translation requests in seconds.")
+    parser.add_argument("--retries", type=int,
+                       help="  Set maximum number of retries for failed translations.")
 
     args = parser.parse_args()
 

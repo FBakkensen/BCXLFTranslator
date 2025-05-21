@@ -64,7 +64,7 @@ This document outlines the step-by-step process for completely removing terminol
 
 ### Task 7: Update README.md
 
-- **Status**: [ ]
+- **Status**: [x]
 - **Description**: Update the project's README.md file to remove any references to terminology functionality and clarify that the project now focuses solely on translation.
 - **Prompt**: "Update the README.md file to remove any references to terminology functionality. Make it clear that the project now focuses solely on translation using Google Translate. Update any examples, usage instructions, or feature lists accordingly."
 - **Verification**:

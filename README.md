@@ -1,6 +1,6 @@
 # BCXLFTranslator
 
-A Python CLI tool for automating translations of XLIFF files (XML Localization Interchange File Format) used in software localization processes, especially for Business Central applications. Designed primarily for Windows environments.
+A Python CLI tool for automating translations of XLIFF files (XML Localization Interchange File Format) using Google Translate. Primarily designed for software localization processes, especially for Business Central applications. Optimized for Windows environments.
 
 ## Features
 
@@ -96,7 +96,7 @@ The output XLIFF includes source attribution notes:
 
 ### Translation Statistics
 
-After translation, BCXLFTranslator provides statistics about translation:
+After translation, BCXLFTranslator provides statistics about the translation process:
 
 ```
 Translation statistics:

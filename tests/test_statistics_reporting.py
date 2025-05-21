@@ -2,16 +2,11 @@ import pytest
 import sys
 import os
 import io
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Add the parent directory to the path so we can import from src
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from src.bcxlftranslator.statistics import (
-    TranslationStatistics,
-    StatisticsCollector,
-    DetailedStatisticsCollector,
-    StatisticsManager
-)
+from src.bcxlftranslator.statistics import TranslationStatistics
 
 # Import the module we'll be creating
 from src.bcxlftranslator.statistics_reporting import StatisticsReporter
@@ -21,7 +16,7 @@ class TestStatisticsReporter:
     """
     Test the console reporting functionality for translation statistics.
     """
-    
+
     def test_format_basic_statistics_summary(self):
         """
         Given a TranslationStatistics object with counts
@@ -30,20 +25,18 @@ class TestStatisticsReporter:
         """
         # Create statistics with sample data
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 30
-        stats.google_translate_count = 70
+        stats.google_translate_count = 100
         stats.calculate_percentages()
-        
+
         # Create reporter and format report
         reporter = StatisticsReporter()
         report = reporter.format_console_report(stats)
-        
+
         # Check that the report contains expected elements
         assert "Translation Statistics Summary" in report
         assert "Total translations: 100" in report
-        assert "Microsoft Terminology: 30 (30.0%)" in report
-        assert "Google Translate: 70 (70.0%)" in report
-    
+        assert "Google Translate: 100 (100.0%)" in report
+
     def test_display_statistics_with_different_detail_levels(self):
         """
         Given a TranslationStatistics object
@@ -52,23 +45,22 @@ class TestStatisticsReporter:
         """
         # Create statistics with sample data
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 25
-        stats.google_translate_count = 75
+        stats.google_translate_count = 100
         stats.calculate_percentages()
-        
+
         # Create reporter
         reporter = StatisticsReporter()
-        
+
         # Test summary level
         summary_report = reporter.format_console_report(stats, detail_level="summary")
         assert "Translation Statistics Summary" in summary_report
         assert len(summary_report.splitlines()) < 10  # Summary should be concise
-        
+
         # Test detailed level
         detailed_report = reporter.format_console_report(stats, detail_level="detailed")
         assert "Translation Statistics (Detailed)" in detailed_report
         assert len(detailed_report.splitlines()) > len(summary_report.splitlines())
-    
+
     def test_formatting_output_with_spacing_and_alignment(self):
         """
         Given a TranslationStatistics object
@@ -77,29 +69,25 @@ class TestStatisticsReporter:
         """
         # Create statistics with sample data
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 42
-        stats.google_translate_count = 58
+        stats.google_translate_count = 100
         stats.calculate_percentages()
-        
+
         # Create reporter and format report (detailed)
         reporter = StatisticsReporter()
         report = reporter.format_console_report(stats, detail_level="detailed")
-        
+
         # Check for proper formatting
         lines = report.splitlines()
-        
-        # Find lines with statistics and check alignment
-        ms_line = next((line for line in lines if "Microsoft Terminology" in line), None)
+
+        # Find line with Google Translate statistics and check formatting
         gt_line = next((line for line in lines if "Google Translate" in line), None)
-        
-        assert ms_line is not None
+
         assert gt_line is not None
-        
-        # Check that the numbers are aligned (same position in both lines)
-        ms_number_pos = ms_line.find("42")
-        gt_number_pos = gt_line.find("58")
-        assert ms_number_pos == gt_number_pos
-    
+
+        # Check that the numbers are properly formatted
+        gt_number_pos = gt_line.find("100")
+        assert gt_number_pos > 0
+
     def test_inclusion_of_timing_information(self):
         """
         Given a TranslationStatistics object and timing information
@@ -108,24 +96,23 @@ class TestStatisticsReporter:
         """
         # Create statistics with sample data
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 50
-        stats.google_translate_count = 50
+        stats.google_translate_count = 100
         stats.calculate_percentages()
-        
+
         # Create reporter and format report with timing
         reporter = StatisticsReporter()
         report = reporter.format_console_report(
-            stats, 
+            stats,
             duration_seconds=120.5,
             start_time="2023-05-05 10:00:00",
             end_time="2023-05-05 10:02:00"
         )
-        
+
         # Check for timing information
         assert "Duration: 2m 0.5s" in report
         assert "Start time: 2023-05-05 10:00:00" in report
         assert "End time: 2023-05-05 10:02:00" in report
-    
+
     def test_handling_empty_statistics(self):
         """
         Given an empty TranslationStatistics object
@@ -134,16 +121,15 @@ class TestStatisticsReporter:
         """
         # Create empty statistics
         stats = TranslationStatistics()
-        
+
         # Create reporter and format report
         reporter = StatisticsReporter()
         report = reporter.format_console_report(stats)
-        
+
         # Check that the report handles empty stats
         assert "Total translations: 0" in report
-        assert "Microsoft Terminology: 0 (0.0%)" in report
-        assert "Google Translate: 0 (0.0%)" in report
-    
+        assert "Google Translate: 0 (100.0%)" in report
+
     def test_output_adapts_to_terminal_width(self):
         """
         Given a TranslationStatistics object and different terminal widths
@@ -152,25 +138,24 @@ class TestStatisticsReporter:
         """
         # Create statistics with sample data
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 40
-        stats.google_translate_count = 60
+        stats.google_translate_count = 100
         stats.calculate_percentages()
-        
+
         # Create reporter
         reporter = StatisticsReporter()
-        
+
         # Test with narrow terminal
         narrow_report = reporter.format_console_report(stats, terminal_width=40)
         narrow_lines = narrow_report.splitlines()
         assert all(len(line) <= 40 for line in narrow_lines)
-        
+
         # Test with wide terminal
         wide_report = reporter.format_console_report(stats, terminal_width=100)
         wide_lines = wide_report.splitlines()
-        
+
         # The wide report should have some lines longer than the narrow report
         assert any(len(line) > 40 for line in wide_lines)
-    
+
     def test_print_statistics_to_console(self):
         """
         Given a TranslationStatistics object
@@ -179,47 +164,23 @@ class TestStatisticsReporter:
         """
         # Create statistics with sample data
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 35
-        stats.google_translate_count = 65
+        stats.google_translate_count = 100
         stats.calculate_percentages()
-        
+
         # Create reporter
         reporter = StatisticsReporter()
-        
+
         # Capture stdout
         with patch('sys.stdout', new=io.StringIO()) as fake_stdout:
             reporter.print_statistics(stats)
             console_output = fake_stdout.getvalue()
-        
+
         # Check that the output contains expected elements
         assert "Translation Statistics Summary" in console_output
         assert "Total translations: 100" in console_output
-        assert "Microsoft Terminology: 35 (35.0%)" in console_output
-        assert "Google Translate: 65 (65.0%)" in console_output
-    
-    def test_detailed_statistics_collector_report(self):
-        """
-        Given a DetailedStatisticsCollector with data
-        When format_console_report is called with a detailed collector
-        Then it should include categorized statistics in the report
-        """
-        # Create a detailed collector with sample data
-        collector = DetailedStatisticsCollector()
-        
-        # Add some categorized data
-        collector.track_translation("Microsoft Terminology", object_type="Table")
-        collector.track_translation("Microsoft Terminology", object_type="Page")
-        collector.track_translation("Google Translate", object_type="Field")
-        
-        # Create reporter and format report
-        reporter = StatisticsReporter()
-        report = reporter.format_detailed_console_report(collector)
-        
-        # Check that the report contains categorized statistics
-        assert "Statistics by Object Type" in report
-        assert "Table" in report
-        assert "Page" in report
-        assert "Field" in report
+        assert "Google Translate: 100 (100.0%)" in console_output
+
+
 
     def test_export_csv_correct_headers(self, tmp_path):
         """
@@ -228,15 +189,14 @@ class TestStatisticsReporter:
         Then the generated CSV should have correct headers for statistics data
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 12
-        stats.google_translate_count = 88
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         file_path = tmp_path / "stats.csv"
         reporter = StatisticsReporter()
         reporter.export_statistics_csv(stats, file_path)
         with open(file_path, encoding="utf-8") as f:
             header = f.readline().strip()
-        assert header.startswith("Total translations,Microsoft Terminology,Google Translate")
+        assert header.startswith("Total translations,Google Translate")
 
     def test_export_csv_data_rows_match_statistics(self, tmp_path):
         """
@@ -245,15 +205,14 @@ class TestStatisticsReporter:
         Then the CSV data row should match the statistics values accurately
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 55
-        stats.google_translate_count = 45
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         file_path = tmp_path / "stats.csv"
         reporter = StatisticsReporter()
         reporter.export_statistics_csv(stats, file_path)
         with open(file_path, encoding="utf-8") as f:
             lines = f.readlines()
-        assert "55" in lines[1] and "45" in lines[1]
+        assert "100" in lines[1]
 
     def test_export_csv_escaping_special_characters(self, tmp_path):
         """
@@ -284,7 +243,6 @@ class TestStatisticsReporter:
         Then it should create a new file or overwrite existing file as specified
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 3
         stats.google_translate_count = 7
         file_path = tmp_path / "stats.csv"
         file_path.write_text("old content", encoding="utf-8")
@@ -293,23 +251,22 @@ class TestStatisticsReporter:
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
         assert "old content" not in content
-        assert "Microsoft Terminology" in content
+        assert "Google Translate" in content
 
-    def test_export_csv_file_system_errors(self, tmp_path, monkeypatch):
+    def test_export_csv_file_system_errors(self, tmp_path):
         """
         Given a file path with restricted permissions
         When export_statistics_csv is called
         Then it should handle file system errors gracefully (e.g., permission denied)
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 1
-        stats.google_translate_count = 2
-        file_path = tmp_path / "stats.csv"
+        stats.google_translate_count = 100
+
+        # Create a directory where we'll try to create a file (which will fail)
+        file_path = tmp_path / "nonexistent_dir" / "stats.csv"
+
         reporter = StatisticsReporter()
-        def raise_permission(*a, **kw):
-            raise PermissionError("Permission denied!")
-        monkeypatch.setattr("builtins.open", raise_permission)
-        with pytest.raises(PermissionError):
+        with pytest.raises(FileNotFoundError):
             reporter.export_statistics_csv(stats, file_path)
 
     def test_export_csv_parsable_by_standard_csv_parser(self, tmp_path):
@@ -320,8 +277,7 @@ class TestStatisticsReporter:
         """
         import csv
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 21
-        stats.google_translate_count = 79
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         file_path = tmp_path / "stats.csv"
         reporter = StatisticsReporter()
@@ -330,8 +286,7 @@ class TestStatisticsReporter:
             reader = csv.DictReader(f)
             rows = list(reader)
         assert rows
-        assert int(rows[0]["Microsoft Terminology"]) == 21
-        assert int(rows[0]["Google Translate"]) == 79
+        assert int(rows[0]["Google Translate"]) == 100
 
     def test_export_json_valid_output(self, tmp_path):
         """
@@ -340,8 +295,7 @@ class TestStatisticsReporter:
         Then it should produce valid JSON output
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 10
-        stats.google_translate_count = 20
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         file_path = tmp_path / "stats.json"
         reporter = StatisticsReporter()
@@ -350,8 +304,8 @@ class TestStatisticsReporter:
         with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
         assert isinstance(data, dict)
-        assert data["statistics"]["microsoft_terminology_count"] == 10
-        assert data["statistics"]["google_translate_count"] == 20
+        assert data["statistics"]["google_translate_count"] == 100
+        assert data["statistics"]["total_count"] == 100
 
     def test_export_json_structure_and_fields(self, tmp_path):
         """
@@ -360,9 +314,8 @@ class TestStatisticsReporter:
         Then the JSON structure should include all relevant fields and nesting
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 5
-        stats.google_translate_count = 15
-        stats.nested = {"by_object_type": {"Table": 2, "Page": 3}}
+        stats.google_translate_count = 100
+        stats.nested = {"by_object_type": {"Table": 50, "Page": 50}}
         file_path = tmp_path / "stats.json"
         reporter = StatisticsReporter()
         reporter.export_statistics_json(stats, file_path)
@@ -372,7 +325,7 @@ class TestStatisticsReporter:
         assert "statistics" in data
         assert "nested" in data["statistics"]
         assert "by_object_type" in data["statistics"]["nested"]
-        assert data["statistics"]["nested"]["by_object_type"]["Table"] == 2
+        assert data["statistics"]["nested"]["by_object_type"]["Table"] == 50
 
     def test_export_json_includes_metadata(self, tmp_path):
         """
@@ -381,8 +334,7 @@ class TestStatisticsReporter:
         Then the JSON should include metadata (timestamp, version, run info)
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 1
-        stats.google_translate_count = 2
+        stats.google_translate_count = 100
         file_path = tmp_path / "stats.json"
         reporter = StatisticsReporter()
         reporter.export_statistics_json(stats, file_path)
@@ -401,8 +353,7 @@ class TestStatisticsReporter:
         Then the JSON output should be indented for readability
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 3
-        stats.google_translate_count = 7
+        stats.google_translate_count = 100
         file_path = tmp_path / "stats.json"
         reporter = StatisticsReporter()
         reporter.export_statistics_json(stats, file_path, pretty_print=True)
@@ -418,8 +369,8 @@ class TestStatisticsReporter:
         """
         class LargeStats:
             def __init__(self, n):
-                self.microsoft_terminology_count = n
                 self.google_translate_count = n
+                self.total_count = n
                 self.nested = {"by_object_type": {str(i): i for i in range(n)}}
         large_stats = LargeStats(10000)
         file_path = tmp_path / "large_stats.json"
@@ -429,7 +380,7 @@ class TestStatisticsReporter:
         with open(file_path, encoding="utf-8") as f:
             import json
             data = json.load(f)
-        assert data["statistics"]["microsoft_terminology_count"] == 10000
+        assert data["statistics"]["google_translate_count"] == 10000
         assert len(data["statistics"]["nested"]["by_object_type"]) == 10000
 
     def test_export_html_generates_valid_html(self, tmp_path):
@@ -439,8 +390,7 @@ class TestStatisticsReporter:
         Then the output file should contain valid HTML
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 12
-        stats.google_translate_count = 88
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         file_path = tmp_path / "stats.html"
         reporter = StatisticsReporter()
@@ -457,8 +407,7 @@ class TestStatisticsReporter:
         Then the HTML should include embedded CSS and JavaScript
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 50
-        stats.google_translate_count = 50
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         file_path = tmp_path / "stats.html"
         reporter = StatisticsReporter()
@@ -475,8 +424,7 @@ class TestStatisticsReporter:
         Then the HTML should include a table with correct statistics values
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 23
-        stats.google_translate_count = 77
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         file_path = tmp_path / "stats.html"
         reporter = StatisticsReporter()
@@ -484,7 +432,7 @@ class TestStatisticsReporter:
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
         assert "<table" in content and "</table>" in content
-        assert "23" in content and "77" in content
+        assert "100" in content
 
     def test_export_html_includes_chart_visualization(self, tmp_path):
         """
@@ -493,8 +441,7 @@ class TestStatisticsReporter:
         Then the HTML should include chart visualization data for source percentages
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 40
-        stats.google_translate_count = 60
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         file_path = tmp_path / "stats.html"
         reporter = StatisticsReporter()
@@ -502,7 +449,7 @@ class TestStatisticsReporter:
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
         assert "chart" in content.lower() or "canvas" in content.lower()
-        assert "40" in content and "60" in content
+        assert "100" in content
 
     def test_export_html_is_self_contained(self, tmp_path):
         """
@@ -511,8 +458,7 @@ class TestStatisticsReporter:
         Then the HTML report should be self-contained (no external dependencies)
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 10
-        stats.google_translate_count = 90
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         file_path = tmp_path / "stats.html"
         reporter = StatisticsReporter()
@@ -530,8 +476,7 @@ class TestStatisticsReporter:
         Then it should conform to basic W3C HTML standards (structure, tags)
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 5
-        stats.google_translate_count = 95
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         file_path = tmp_path / "stats.html"
         reporter = StatisticsReporter()
@@ -552,8 +497,7 @@ class TestStatisticsReporter:
         Then it should generate valid reports in all formats (console, CSV, JSON, HTML)
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 12
-        stats.google_translate_count = 88
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         reporter = StatisticsReporter()
         formats = ["console", "csv", "json", "html"]
@@ -575,7 +519,7 @@ class TestStatisticsReporter:
                     assert "metadata" in content and "statistics" in content
                 elif fmt == "html":
                     assert "<html" in content.lower()
-    
+
     def test_unified_api_with_configurable_options(self, tmp_path):
         """
         Given a TranslationStatistics object and various config options
@@ -583,8 +527,7 @@ class TestStatisticsReporter:
         Then it should generate reports reflecting those options (e.g., detail level, pretty-print)
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 20
-        stats.google_translate_count = 80
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         reporter = StatisticsReporter()
         # Example configurable options
@@ -604,8 +547,7 @@ class TestStatisticsReporter:
         Then it should detect the format from the file extension and generate the correct report
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 33
-        stats.google_translate_count = 67
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         reporter = StatisticsReporter()
         html_path = tmp_path / "stats_report.html"
@@ -626,8 +568,7 @@ class TestStatisticsReporter:
         Then all generated reports should include timestamp and session information
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 42
-        stats.google_translate_count = 58
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         reporter = StatisticsReporter()
         # Assume session_info is provided or generated
@@ -652,8 +593,7 @@ class TestStatisticsReporter:
         Then it should produce all requested report files correctly
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 15
-        stats.google_translate_count = 85
+        stats.google_translate_count = 100
         stats.calculate_percentages()
         reporter = StatisticsReporter()
         output_map = {
@@ -673,122 +613,4 @@ class TestStatisticsReporter:
             elif fmt == "csv":
                 assert "," in content
 
-class TestExtractionResultsReporting:
-    """
-    Tests for detailed reporting of terminology extraction results (Step 8.4).
-    """
-    def test_extraction_summary_report(self):
-        """
-        Given extraction results with added, updated, skipped, errors, and warnings
-        When the extraction summary report is generated
-        Then it should include correct counts for each category
-        """
-        extraction_results = {
-            'added': 5,
-            'updated': 2,
-            'skipped': 1,
-            'errors': 1,
-            'warnings': 3,
-            'terms': [
-                {'term': 'A', 'action': 'added'},
-                {'term': 'B', 'action': 'added'},
-                {'term': 'C', 'action': 'updated'},
-                {'term': 'D', 'action': 'skipped'},
-                {'term': 'E', 'action': 'added'},
-                {'term': 'F', 'action': 'added'},
-                {'term': 'G', 'action': 'updated'},
-                {'term': 'H', 'action': 'added'},
-            ],
-            'error_details': ['Failed to add term X'],
-            'warning_details': ['Term Y is ambiguous', 'Term Z is deprecated', 'Term Q is missing context']
-        }
-        from src.bcxlftranslator.extraction_reporting import ExtractionResultsReporter
-        reporter = ExtractionResultsReporter()
-        summary = reporter.format_summary_report(extraction_results)
-        assert 'Added: 5' in summary
-        assert 'Updated: 2' in summary
-        assert 'Skipped: 1' in summary
-        assert 'Errors: 1' in summary
-        assert 'Warnings: 3' in summary
 
-    def test_extraction_detailed_report_includes_term_info(self):
-        """
-        Given extraction results with term-by-term info
-        When the detailed extraction report is generated
-        Then each term and its action should be listed
-        """
-        extraction_results = {
-            'terms': [
-                {'term': 'A', 'action': 'added'},
-                {'term': 'B', 'action': 'updated'},
-                {'term': 'C', 'action': 'skipped'},
-            ]
-        }
-        from src.bcxlftranslator.extraction_reporting import ExtractionResultsReporter
-        reporter = ExtractionResultsReporter()
-        detail = reporter.format_detailed_report(extraction_results)
-        assert 'A' in detail and 'added' in detail
-        assert 'B' in detail and 'updated' in detail
-        assert 'C' in detail and 'skipped' in detail
-
-    def test_extraction_report_csv_format(self, tmp_path):
-        """
-        Given extraction results
-        When the CSV report is generated
-        Then the CSV should have correct headers and rows for each term
-        """
-        extraction_results = {
-            'terms': [
-                {'term': 'A', 'action': 'added'},
-                {'term': 'B', 'action': 'updated'},
-                {'term': 'C', 'action': 'skipped'},
-            ]
-        }
-        from src.bcxlftranslator.extraction_reporting import ExtractionResultsReporter
-        reporter = ExtractionResultsReporter()
-        csv_path = tmp_path / 'extraction_report.csv'
-        reporter.export_csv_report(extraction_results, csv_path)
-        with open(csv_path, encoding='utf-8') as f:
-            content = f.read()
-        assert 'term,action' in content
-        assert 'A,added' in content
-        assert 'B,updated' in content
-        assert 'C,skipped' in content
-
-    def test_extraction_report_logs_errors_and_warnings(self, caplog):
-        """
-        Given extraction results with errors and warnings
-        When the extraction report is generated
-        Then errors and warnings should be logged for troubleshooting
-        """
-        extraction_results = {
-            'errors': 1,
-            'warnings': 2,
-            'error_details': ['Failed to add term X'],
-            'warning_details': ['Term Y is ambiguous', 'Term Z is deprecated']
-        }
-        from src.bcxlftranslator.extraction_reporting import ExtractionResultsReporter
-        reporter = ExtractionResultsReporter()
-        with caplog.at_level('WARNING'):
-            reporter.log_issues(extraction_results)
-        assert 'Failed to add term X' in caplog.text
-        assert 'Term Y is ambiguous' in caplog.text
-        assert 'Term Z is deprecated' in caplog.text
-
-    def test_extraction_report_includes_error_and_warning_counts(self):
-        """
-        Given extraction results with errors and warnings
-        When the extraction summary report is generated
-        Then it should include counts for errors and warnings
-        """
-        extraction_results = {
-            'errors': 2,
-            'warnings': 4,
-            'error_details': ['Error 1', 'Error 2'],
-            'warning_details': ['Warning 1', 'Warning 2', 'Warning 3', 'Warning 4']
-        }
-        from src.bcxlftranslator.extraction_reporting import ExtractionResultsReporter
-        reporter = ExtractionResultsReporter()
-        summary = reporter.format_summary_report(extraction_results)
-        assert 'Errors: 2' in summary
-        assert 'Warnings: 4' in summary

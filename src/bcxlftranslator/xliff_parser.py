@@ -77,69 +77,7 @@ def extract_trans_units(xliff_doc):
             'target_text': target_text
         })
     return trans_units
-import re
 
-def identify_object_type(trans_unit_dict):
-    """
-    Identify the Business Central object type from a trans-unit dictionary's 'id' field.
-
-    Args:
-        trans_unit_dict (dict): A dictionary with at least an 'id' key.
-
-    Returns:
-        dict: The original dictionary, enriched with 'object_type' and 'context' keys.
-    """
-    id_str = trans_unit_dict.get('id', '')
-    id_lower = id_str.lower()
-
-    object_type = None
-
-    # Field: Table X - Field Y - ... or Page X - Field Y - ...
-    field_pattern = re.compile(r'^(table|page)\s+\d+\s*-\s*field\s+\d+\b', re.IGNORECASE)
-    # Table: Table X - ... (not Field)
-    table_pattern = re.compile(r'^table\s+\d+\b', re.IGNORECASE)
-    # Page: Page X - ... (not Field)
-    page_pattern = re.compile(r'^page\s+\d+\b', re.IGNORECASE)
-
-    if field_pattern.match(id_str):
-        object_type = 'Field'
-    elif table_pattern.match(id_str):
-        object_type = 'Table'
-    elif page_pattern.match(id_str):
-        object_type = 'Page'
-    else:
-        object_type = None
-
-    # For now, context extraction is not implemented
-    context = None
-
-    trans_unit_dict['object_type'] = object_type
-    trans_unit_dict['context'] = context
-    return trans_unit_dict
-def filter_terminology_candidates(enriched_trans_units):
-    """
-    Filter a list of enriched trans-unit dictionaries to select good terminology candidates.
-
-    Args:
-        enriched_trans_units (list of dict): List of trans-unit dicts, each with keys like
-            'id', 'source_text', 'target_text', 'object_type', 'context'.
-
-    Returns:
-        list of dict: New list containing only the dictionaries that meet the filtering criteria.
-    """
-    allowed_types = {'Table', 'Page', 'Field'}
-    filtered = []
-    for tu in enriched_trans_units:
-        if tu.get('object_type') not in allowed_types:
-            continue
-        source = tu.get('source_text')
-        target = tu.get('target_text')
-        if not source or not target:
-            continue
-        if len(source) <= 2:
-            continue
-        filtered.append(tu)
-    return filtered
 # --- Logging Setup ---
 # Basic configuration for logging within this module
 log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -148,19 +86,16 @@ logger = logging.getLogger(__name__)
 
 # --- Main Parser Function ---
 
-def parse_xliff_for_terminology(file_path):
+def parse_xliff_file(file_path):
     """
-    Parses an XLIFF file to extract potential terminology candidates.
-
-    Orchestrates the loading, extraction, identification, and filtering steps.
+    Parses an XLIFF file to extract translation units.
 
     Args:
         file_path (str): Path to the XLIFF file.
 
     Returns:
-        list of dict: A list of dictionaries, each representing a terminology
-                      candidate with keys like 'id', 'source_text', 'target_text',
-                      'object_type', and 'context'.
+        list of dict: A list of dictionaries, each representing a translation unit
+                      with keys like 'id', 'source_text', and 'target_text'.
 
     Raises:
         FileNotFoundError: If the file does not exist.
@@ -179,20 +114,7 @@ def parse_xliff_for_terminology(file_path):
         logger.info(f"Extracted {len(trans_units)} trans-units.")
         logger.debug(f"Extracted trans-units: {trans_units}")
 
-        logger.info("Identifying object types...")
-        enriched_trans_units = []
-        for tu in trans_units:
-            enriched_tu = identify_object_type(tu.copy()) # Use copy to avoid modifying original list items
-            enriched_trans_units.append(enriched_tu)
-            logger.debug(f"Identified object type for unit {tu.get('id')}: {enriched_tu.get('object_type')}")
-        logger.debug("Object type identification complete.")
-
-        logger.info("Filtering terminology candidates...")
-        candidates = filter_terminology_candidates(enriched_trans_units)
-        logger.info(f"Filtered to {len(candidates)} terminology candidates.")
-        logger.debug(f"Filtered candidates: {candidates}")
-
-        return candidates
+        return trans_units
 
     except (FileNotFoundError, EmptyXliffError, ET.ParseError, InvalidXliffError) as e:
         logger.error(f"Error during XLIFF parsing: {e}")

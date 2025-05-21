@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
 from datetime import datetime
 import sys
@@ -14,18 +14,6 @@ from bcxlftranslator import note_generation
 
 class TestNoteGeneration(unittest.TestCase):
     """Test cases for attribution note generation functionality."""
-
-    def test_generate_microsoft_terminology_note(self):
-        """
-        Given the Microsoft Terminology source is specified
-        When generate_attribution_note is called
-        Then it should return a note containing "Microsoft Terminology"
-        """
-        note = note_generation.generate_attribution_note(source="MICROSOFT")
-
-        # Basic validation of the note content
-        self.assertIsNotNone(note)
-        self.assertIn("Microsoft Terminology", note)
 
     def test_generate_google_translate_note(self):
         """
@@ -51,7 +39,6 @@ class TestNoteGeneration(unittest.TestCase):
             "object_type": "Field"
         }
         note = note_generation.generate_attribution_note(
-            source="MICROSOFT",
             metadata=metadata
         )
 
@@ -72,35 +59,10 @@ class TestNoteGeneration(unittest.TestCase):
             mock_datetime.now.return_value = mock_date
             mock_datetime.strftime = datetime.strftime
 
-            note = note_generation.generate_attribution_note(source="MICROSOFT")
+            note = note_generation.generate_attribution_note()
 
             # Check if the timestamp is included in the note
             self.assertIn("2025-05-01", note)
-
-    def test_invalid_source(self):
-        """
-        Given an invalid source type
-        When generate_attribution_note is called
-        Then it should raise a ValueError
-        """
-        with pytest.raises(ValueError):
-            note_generation.generate_attribution_note(source="INVALID_SOURCE")
-
-    def test_generate_mixed_source_note(self):
-        """
-        Given translations from multiple sources with specified percentages
-        When generate_attribution_note is called with MIXED source
-        Then it should include both sources and their percentages
-        """
-        note = note_generation.generate_attribution_note(source="MIXED",
-                                                        microsoft_percentage=70,
-                                                        google_percentage=30)
-
-        # Check if both sources are mentioned and percentages are included
-        self.assertIn("Microsoft Terminology", note)
-        self.assertIn("Google Translate", note)
-        self.assertIn("70%", note)
-        self.assertIn("30%", note)
 
     def test_custom_attribution_template(self):
         """
@@ -108,17 +70,16 @@ class TestNoteGeneration(unittest.TestCase):
         When generate_attribution_note is called with this template
         Then the note should follow the custom template format
         """
-        # Test with a custom template for Microsoft source
-        template = "Custom template: {source} translated {term} on {date}"
+        # Test with a custom template
+        template = "Custom template: Google Translate translated {term} on {date}"
         note = note_generation.generate_attribution_note(
-            source="MICROSOFT",
             template=template,
             metadata={"term": "Quote"}
         )
 
         # Verify the custom template was used
         self.assertIn("Custom template:", note)
-        self.assertIn("Microsoft Terminology", note)
+        self.assertIn("Google Translate", note)
         self.assertIn("translated Quote on", note)
 
     def test_custom_template_with_all_placeholders(self):
@@ -127,7 +88,7 @@ class TestNoteGeneration(unittest.TestCase):
         When generate_attribution_note is called with metadata for all placeholders
         Then all placeholders should be correctly replaced
         """
-        template = "{source} - {term}:{translated_term} ({date}, {time})"
+        template = "Google Translate - {term}:{translated_term} ({date}, {time})"
         metadata = {
             "term": "Quote",
             "translated_term": "Tilbud"
@@ -140,49 +101,24 @@ class TestNoteGeneration(unittest.TestCase):
             mock_datetime.strftime = datetime.strftime
 
             note = note_generation.generate_attribution_note(
-                source="MICROSOFT",
                 template=template,
                 metadata=metadata
             )
 
         # Verify all placeholders were replaced
-        self.assertEqual(note, "Microsoft Terminology - Quote:Tilbud (2025-05-01, 12:30:45)")
+        self.assertEqual(note, "Google Translate - Quote:Tilbud (2025-05-01, 12:30:45)")
 
     def test_template_missing_required_placeholders(self):
         """
-        Given a template missing the required {source} placeholder
+        Given a template missing placeholders
         When generate_attribution_note is called with this template
-        Then it should raise a ValueError
+        Then it should not raise an error but use the template as is
         """
-        # Template missing the {source} placeholder, which is required
-        template = "Translation generated on {date}"
+        # Template missing placeholders
+        template = "Translation generated by Google Translate"
 
-        with pytest.raises(ValueError):
-            note_generation.generate_attribution_note(
-                source="MICROSOFT",
-                template=template
-            )
-
-    def test_default_templates(self):
-        """
-        Given different translation sources
-        When get_default_template is called for each source
-        Then it should return appropriate templates with required placeholders
-        """
-        # Test getting the default Microsoft template
-        microsoft_template = note_generation.get_default_template("MICROSOFT")
-        self.assertIsNotNone(microsoft_template)
-        self.assertIn("{source}", microsoft_template)
-
-        # Test getting the default Google template
-        google_template = note_generation.get_default_template("GOOGLE")
-        self.assertIsNotNone(google_template)
-        self.assertIn("{source}", google_template)
-
-        # Test getting the default Mixed template
-        mixed_template = note_generation.get_default_template("MIXED")
-        self.assertIsNotNone(mixed_template)
-        self.assertIn("{microsoft_percentage}", mixed_template)
+        note = note_generation.generate_attribution_note(template=template)
+        assert note == template
 
     def test_template_with_missing_metadata(self):
         """
@@ -190,12 +126,11 @@ class TestNoteGeneration(unittest.TestCase):
         When generate_attribution_note is called without the required metadata
         Then it should raise a KeyError
         """
-        template = "{source} - {term}:{translated_term}"
+        template = "Google Translate - {term}:{translated_term}"
 
         # No metadata provided but template requires it
         with pytest.raises(KeyError):
             note_generation.generate_attribution_note(
-                source="MICROSOFT",
                 template=template
             )
 
@@ -203,7 +138,6 @@ class TestNoteGeneration(unittest.TestCase):
         metadata = {"term": "Quote"}  # Missing translated_term
         with pytest.raises(KeyError):
             note_generation.generate_attribution_note(
-                source="MICROSOFT",
                 template=template,
                 metadata=metadata
             )
@@ -231,7 +165,7 @@ class TestXliffNoteIntegration(unittest.TestCase):
         When add_note_to_trans_unit is called
         Then a note should be added with the correct text and attributes
         """
-        note_text = "Source: Microsoft Terminology"
+        note_text = "Source: Google Translate"
 
         # Call the function to add a note
         result = note_generation.add_note_to_trans_unit(
@@ -294,10 +228,10 @@ class TestXliffNoteIntegration(unittest.TestCase):
         """
         # Add an existing note first
         existing_note = ET.SubElement(self.trans_unit, '{%s}note' % self.xliff_ns)
-        existing_note.text = "Source: Google Translate"
+        existing_note.text = "Source: Google Translate (old)"
         existing_note.set('from', 'BCXLFTranslator')
 
-        new_note_text = "Source: Microsoft Terminology"
+        new_note_text = "Source: Google Translate (new)"
 
         # Call the function to update the note, with update_existing=True
         result = note_generation.add_note_to_trans_unit(
@@ -324,10 +258,10 @@ class TestXliffNoteIntegration(unittest.TestCase):
         """
         # Add an existing note first
         existing_note = ET.SubElement(self.trans_unit, '{%s}note' % self.xliff_ns)
-        existing_note.text = "Source: Google Translate"
+        existing_note.text = "Source: Google Translate (first)"
         existing_note.set('from', 'BCXLFTranslator')
 
-        new_note_text = "Source: Microsoft Terminology"
+        new_note_text = "Source: Google Translate (second)"
 
         # Call the function to add a new note, with update_existing=False
         result = note_generation.add_note_to_trans_unit(
@@ -348,8 +282,8 @@ class TestXliffNoteIntegration(unittest.TestCase):
         bc_notes = [note for note in notes if note.get('from') == 'BCXLFTranslator']
         self.assertEqual(len(bc_notes), 2)
         note_texts = [note.text for note in bc_notes]
-        self.assertIn("Source: Google Translate", note_texts)
-        self.assertIn("Source: Microsoft Terminology", note_texts)
+        self.assertIn("Source: Google Translate (first)", note_texts)
+        self.assertIn("Source: Google Translate (second)", note_texts)
 
     def test_add_note_invalid_inputs(self):
         """

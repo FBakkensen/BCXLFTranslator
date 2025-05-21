@@ -189,14 +189,14 @@ def match_single_text(source, translated):
 async def translate_with_retry(translator, text, dest_lang, src_lang, retries=0):
     """
     Helper function to handle translation with retries
-    
+
     Args:
         translator: The translator instance to use
         text: The text to translate
         dest_lang: The destination language code
         src_lang: The source language code
         retries: The current retry count
-        
+
     Returns:
         An object with a text attribute containing the translated text, or None if translation failed
     """
@@ -248,18 +248,15 @@ def strip_namespace(elem):
     for child in elem:
         strip_namespace(child)
 
-async def translate_xliff(input_file, output_file, add_attribution=True, use_terminology=False, highlight_terms=False, db_path=None):
+async def translate_xliff(input_file, output_file, add_attribution=True):
     """
     Main translation function - googletrans 4.0.2 version using async context manager
-    
+
     Args:
         input_file (str): Path to the input XLIFF file
         output_file (str): Path to save the translated XLIFF file
         add_attribution (bool): Whether to add attribution notes to translation units
-        use_terminology (bool): Whether to use terminology database for translation
-        highlight_terms (bool): Whether to highlight terms from terminology database
-        db_path (str): Path to the terminology database file
-        
+
     Returns:
         StatisticsCollector or None: Statistics object if successful, None if failed
     """
@@ -271,7 +268,7 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
         # Fall back to absolute import (when installed as package)
         from bcxlftranslator.statistics import StatisticsCollector
     stats_collector = StatisticsCollector()
-    
+
     try:
         # Check if input file exists
         if not os.path.exists(input_file):
@@ -311,27 +308,7 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
         if target_lang_code not in LANGUAGES:
             print(f"Warning: Target language '{target_lang_code}' not in supported languages list. Trying anyway...")
 
-        # Initialize terminology database if terminology is enabled
-        if use_terminology:
-            try:
-                # Try relative import first
-                from .terminology_db import get_terminology_database
-            except ImportError:
-                # Fall back to absolute import (when installed as package)
-                from bcxlftranslator.terminology_db import get_terminology_database
-            
-            try:
-                if db_path:
-                    get_terminology_database(db_path)
-                    print(f"Using terminology database: {db_path}")
-                else:
-                    # Use default in-memory database if no path specified
-                    get_terminology_database()
-                    print("Using in-memory terminology database")
-            except Exception as e:
-                print(f"Warning: Failed to initialize terminology database: {e}")
-                print("Continuing without terminology support.")
-                use_terminology = False
+
 
         # Find all translation units
         trans_units = root.findall(f".//{ns}trans-unit")
@@ -359,52 +336,33 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
 
                 if source_elem is not None and target_elem is not None:
                     source_text = source_elem.text or ""
-                    
+
                     # Skip empty source text
                     if not source_text.strip():
                         continue
 
-                    # Try to translate using terminology database first if enabled
+                    # Translate using Google Translate
                     target_text = None
-                    terminology_used = False
-                    
-                    if use_terminology:
+                    # Check if we've already translated this text
+                    if source_text in translation_cache:
+                        target_text = translation_cache[source_text]
+                    else:
                         try:
-                            # Look up in terminology database
-                            term_translation = terminology_lookup(source_text, target_lang)
-                            if term_translation:
-                                target_text = term_translation
-                                terminology_used = True
-                                # Track terminology usage in statistics
-                                stats_collector.track_translation("Microsoft Terminology", 
-                                                               source_text=source_text, 
-                                                               target_text=target_text)
+                            # Translate the text
+                            result = await translate_with_retry(translator, source_text, target_lang_code, source_lang_code)
+                            target_text = result.text
+
+                            # Cache the translation
+                            translation_cache[source_text] = target_text
                         except Exception as e:
-                            print(f"Warning: Terminology lookup failed: {e}")
-                            # Continue with Google Translate
-                    
-                    # If terminology didn't provide a translation, use Google Translate
-                    if not terminology_used:
-                        # Check if we've already translated this text
-                        if source_text in translation_cache:
-                            target_text = translation_cache[source_text]
-                        else:
-                            try:
-                                # Translate the text
-                                result = await translate_with_retry(translator, source_text, target_lang_code, source_lang_code)
-                                target_text = result.text
-                                
-                                # Cache the translation
-                                translation_cache[source_text] = target_text
-                            except Exception as e:
-                                print(f"Warning: Translation failed for '{source_text}': {e}")
-                                # Skip this unit rather than exiting
-                                continue
-                        
-                        # Track Google Translate usage in statistics
-                        stats_collector.track_translation("Google Translate", 
-                                                       source_text=source_text, 
-                                                       target_text=target_text)
+                            print(f"Warning: Translation failed for '{source_text}': {e}")
+                            # Skip this unit rather than exiting
+                            continue
+
+                    # Track Google Translate usage in statistics
+                    stats_collector.track_translation("Google Translate",
+                                                   source_text=source_text,
+                                                   target_text=target_text)
 
                     # Apply case matching to the translated text
                     target_text = match_case(source_text, target_text)
@@ -412,11 +370,7 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
                     # Update the target element
                     target_elem.text = target_text
                     target_elem.set("state", "translated")
-                    
-                    # Add state-qualifier attribute for terminology matches if highlighting is enabled
-                    if terminology_used and highlight_terms:
-                        target_elem.set("state-qualifier", "exact-match")
-                    
+
                     # Add attribution note if requested
                     if add_attribution:
                         try:
@@ -425,15 +379,9 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
                         except ImportError:
                             # Fall back to absolute import (when installed as package)
                             from bcxlftranslator.note_generation import add_note_to_trans_unit, generate_attribution_note
-                        
-                        # Determine the source for the note
-                        if terminology_used:
-                            note_source = "MICROSOFT"
-                        else:
-                            note_source = "GOOGLE"
-                        
+
                         # Generate and add the note
-                        note_text = generate_attribution_note(note_source)
+                        note_text = generate_attribution_note("GOOGLE")
                         add_note_to_trans_unit(trans_unit, note_text)
 
         # Report final progress
@@ -442,7 +390,7 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
 
         # Calculate and display statistics
         stats = stats_collector.get_statistics()
-        
+
         # Print statistics
         try:
             # Try relative import first
@@ -450,7 +398,7 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
         except ImportError:
             # Fall back to absolute import (when installed as package)
             from bcxlftranslator.statistics_reporting import StatisticsReporter
-        
+
         reporter = StatisticsReporter()
         reporter.print_statistics(stats)
 
@@ -538,7 +486,7 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
             print(f"Error writing XLIFF output: {e}")
             raise
         print(f"Translated XLIFF saved to {output_file}")
-        
+
         return stats  # Return statistics for testing and further processing
 
     except Exception as e:
@@ -547,38 +495,6 @@ async def translate_xliff(input_file, output_file, add_attribution=True, use_ter
         traceback.print_exc()
         return stats_collector  # Return stats collector even on error
 
-def terminology_lookup(source_text, target_lang_code):
-    """
-    Look up a source text in the terminology database for the target language.
-
-    Args:
-        source_text (str): The source text to look up
-        target_lang_code (str): The target language code (e.g., 'da-DK')
-
-    Returns:
-        str or None: The translated term from terminology database, or None if not found
-    """
-    try:
-        # Normalize target language code to just the language part if needed
-        target_lang = target_lang_code.split('-')[0].lower() if '-' in target_lang_code else target_lang_code.lower()
-
-        # Get the terminology database singleton
-        try:
-            # Try relative import first
-            from .terminology_db import get_terminology_database
-        except ImportError:
-            # Fall back to absolute import (when installed as package)
-            from bcxlftranslator.terminology_db import get_terminology_database
-        
-        db = get_terminology_database()
-        if db is None:
-            return None
-        result = db.lookup_term(source_text, target_lang)
-        return result.get('target_term') if result else None
-    except Exception as e:
-        print(f"Error looking up term in terminology database: {e}")
-        return None
-
 def parse_xliff(*args, **kwargs):
     """
     Stub for parse_xliff for TDD/test compatibility (for patching in tests).
@@ -586,105 +502,11 @@ def parse_xliff(*args, **kwargs):
     return None
 parse_xliff.is_stub = True
 
-def extract_terminology_command(xliff_file, lang, filter_type=None, db_path=None, overwrite=False, verbose=False, quiet=False):
-    """
-    Command function for terminology extraction. Now supports advanced options for TDD Step 8.5.
-    """
-    try:
-        # Import here to allow patching in tests
-        import src.bcxlftranslator.terminology_db as terminology_db
-    except ImportError:
-        try:
-            import bcxlftranslator.terminology_db as terminology_db
-        except ImportError:
-            terminology_db = None
-    class Result:
-        def __init__(self, success, count_extracted, exit_code=0):
-            self.success = success
-            self.count_extracted = count_extracted
-            self.exit_code = exit_code
-    try:
-        # Allow test patching of parse_xliff (only if not the built-in stub)
-        use_parse_xliff = (
-            'parse_xliff' in globals()
-            and callable(globals()['parse_xliff'])
-            and not getattr(globals()['parse_xliff'], 'is_stub', False)
-        )
-        if use_parse_xliff:
-            terms = parse_xliff(xliff_file, lang)
-            units_to_process = terms if terms is not None else []
-            count = len(units_to_process)
-        else:
-            tree = ET.parse(xliff_file)
-            root = tree.getroot()
-            # Simulate filtering by type
-            trans_units = root.findall('.//{urn:oasis:names:tc:xliff:document:1.2}trans-unit')
-            units_to_process = []
-            for tu in trans_units:
-                tu_id = tu.get('id', '')
-                if filter_type and filter_type.lower() not in tu_id.lower():
-                    continue
-                units_to_process.append(tu)
-            count = len(units_to_process)
-        # Simulate DB storage
-        if db_path and terminology_db:
-            db = terminology_db.TerminologyDatabase(db_path)
-            # If parse_xliff was used, terms may be dicts, otherwise ElementTree elements
-            if units_to_process and isinstance(units_to_process[0], dict):
-                db.store_terms(units_to_process, overwrite=overwrite)
-            else:
-                db.store_terms([
-                    {'id': tu.get('id'), 'source': tu.findtext('{urn:oasis:names:tc:xliff:document:1.2}source'), 'target': tu.findtext('{urn:oasis:names:tc:xliff:document:1.2}target')}
-                    for tu in units_to_process
-                ], overwrite=overwrite)
-        # Reporting
-        if not quiet:
-            if verbose:
-                print(f"Extracted {count} terms from {xliff_file} (lang={lang}, filter={filter_type}, overwrite={overwrite})")
-                # Print details for both dict and ET.Element
-                for tu in units_to_process:
-                    if isinstance(tu, dict):
-                        print(f"Term: {tu.get('source')} -> {tu.get('target')}")
-                    else:
-                        print(f"Term: {tu.findtext('{urn:oasis:names:tc:xliff:document:1.2}source')} -> {tu.findtext('{urn:oasis:names:tc:xliff:document:1.2}target')}")
-            else:
-                print(f"Extracted {count} terms.")
-        # Simulate warning exit code if no terms
-        exit_code = 0 if count > 0 else 1
-        report_extraction_results()
-        # Progress reporting for large files (only if not quiet mode)
-        if not quiet:
-            if len(units_to_process) > 10:
-                for idx, _ in enumerate(units_to_process):
-                    if idx % 10 == 0:
-                        report_progress(idx, len(units_to_process))
-            elif len(units_to_process) > 0:
-                report_progress(len(units_to_process), len(units_to_process))
-        return Result(success=True, count_extracted=count, exit_code=exit_code)
-    except FileNotFoundError as e:
-        if not quiet:
-            print(f"Error: File not found: {xliff_file}")
-        raise
-    except ET.ParseError as e:
-        if not quiet:
-            print(f"Error: XML parse error in {xliff_file}: {e}")
-        raise
-    except Exception as e:
-        if not quiet:
-            print(f"Error during extraction: {e}")
-        raise
-
-def report_extraction_results(*args, **kwargs):
-    """
-    Stub for reporting extraction results. TDD stub.
-    """
-    pass
-
 
 def report_progress(current, total):
     """
     Report progress during extraction or translation processes.
-    
+
     Args:
         current (int): Current position in the process
         total (int): Total number of items to process
@@ -696,42 +518,16 @@ def main():
     """Main entry point for the translator"""
     parser = argparse.ArgumentParser(
         description=(
-            "Translate XLIFF files for Microsoft Dynamics 365 Business Central using Google Translate (via googletrans library) with caching, or extract and use Business Central terminology from XLIFF files.\n\n"
-            "This tool supports advanced terminology integration for Business Central translation workflows, enabling consistent use of approved terms and fallback to machine translation where needed."
+            "Translate XLIFF files for Microsoft Dynamics 365 Business Central using Google Translate (via googletrans library) with caching.\n\n"
+            "This tool provides a simple way to translate XLIFF files using Google Translate."
         ),
         epilog=(
             "\nEXAMPLES:\n"
-            "  # Translate using terminology database\n"
-            "  main.py input.xlf output.xlf --use-terminology --db bc_terms.db\n"
-            "\n  # Extract terminology from an XLIFF reference file\n"
-            "  main.py --extract-terminology reference.xlf --lang da-DK --db-path bc_terms.db\n"
-            "\nBEST PRACTICES FOR TERMINOLOGY USAGE:\n"
-            "  - Always use the latest approved terminology database for Business Central projects.\n"
-            "  - Review extracted terms for accuracy and context before translation.\n"
-            "  - Use --enable-term-matching to enforce strict term usage in regulated scenarios.\n"
-            "  - Use --disable-term-highlighting for production files to avoid extra markup.\n"
-            "  - Fallback to Google Translate is automatic when a term is not found in the terminology DB.\n"
-            "  - For large projects, batch process with consistent terminology options.\n"
+            "  # Translate an XLIFF file\n"
+            "  main.py input.xlf output.xlf\n"
             "\nFor more information, see project documentation or use --help with any command.\n"
         )
     )
-    
-    # Extraction command group (Step 8.1)
-    parser.add_argument('--extract-terminology', metavar='XLIFF_FILE', help='Extract terminology from the given XLIFF file')
-    parser.add_argument('--lang', metavar='LANG', help='Language code for extraction (e.g., da-DK)')
-    parser.add_argument('--filter', metavar='FILTER', help='Optional filter for extraction (e.g., Table, Field, Page)')
-    parser.add_argument('--db-path', metavar='DB_PATH', help='Path to the terminology database file')
-    parser.add_argument('--overwrite', action='store_true', help='Overwrite existing terms in the database')
-    parser.add_argument('--verbose', action='store_true', help='Print detailed extraction information')
-    parser.add_argument('--quiet', action='store_true', help='Suppress extraction output')
-
-    # Step 9.1: Terminology usage CLI arguments for translation
-    parser.add_argument('--use-terminology', action='store_true', help='Enable usage of terminology database for translation')
-    parser.add_argument('--db', type=str, help='Path to the terminology database file (for translation)')
-    parser.add_argument('--enable-term-matching', action='store_true', help='Enable terminology matching feature')
-    parser.add_argument('--disable-term-matching', action='store_true', help='Disable terminology matching feature')
-    parser.add_argument('--enable-term-highlighting', action='store_true', help='Enable terminology highlighting feature')
-    parser.add_argument('--disable-term-highlighting', action='store_true', help='Disable terminology highlighting feature')
 
     # Original translation CLI arguments
     parser.add_argument("input_file", nargs='?', help="Path to the input XLIFF file.")
@@ -739,37 +535,13 @@ def main():
 
     args = parser.parse_args()
 
-    # Extraction mode
-    if args.extract_terminology:
-        if not args.lang:
-            parser.error('The --lang parameter is required when using --extract-terminology.')
-        # For now, just print parsed values (minimal implementation for TDD)
-        print(f"Extracting terminology from: {args.extract_terminology} (lang={args.lang}, filter={args.filter})")
-        extract_terminology_command(args.extract_terminology, args.lang, args.filter, args.db_path, args.overwrite, args.verbose, args.quiet)
-        sys.exit(0)
-
-    # Step 9.1: Validate terminology argument combinations (translation mode only)
-    if args.use_terminology:
-        if args.enable_term_matching and args.disable_term_matching:
-            parser.error('Cannot use both --enable-term-matching and --disable-term-matching.')
-        if args.enable_term_highlighting and args.disable_term_highlighting:
-            parser.error('Cannot use both --enable-term-highlighting and --disable-term-highlighting.')
-
     # Translation mode (default)
     if args.input_file and args.output_file:
-        # Determine terminology settings
-        use_terminology = args.use_terminology
-        highlight_terms = args.enable_term_highlighting and not args.disable_term_highlighting
-        db_path = args.db or None
-        
         # Run translation with appropriate settings
         asyncio.run(translate_xliff(
-            args.input_file, 
-            args.output_file, 
-            add_attribution=True,
-            use_terminology=use_terminology,
-            highlight_terms=highlight_terms,
-            db_path=db_path
+            args.input_file,
+            args.output_file,
+            add_attribution=True
         ))
     else:
         parser.print_help()

@@ -12,10 +12,8 @@ A Python CLI tool for automating translations of XLIFF files (XML Localization I
 - Retry mechanism for handling transient errors
 - Detailed progress reporting during translation
 - Support for namespace-specific XML attributes
-- **Microsoft Business Central terminology integration**
-- **Terminology extraction and database management**
-- **Translation source attribution (Microsoft or Google)**
-- **Statistics reporting for translation sources**
+- **Translation source attribution**
+- **Statistics reporting**
 
 ## Installation
 
@@ -68,11 +66,7 @@ python -m src.bcxlftranslator.main input.xlf output.xlf
 
 - `input.xlf`: Path to the source XLIFF file to be translated
 - `output.xlf`: Path where the translated XLIFF file should be saved
-- `--extract-terminology`: Extract terminology from Microsoft reference XLIFF file
-- `--use-terminology`: Use stored terminology during translation
-- `--stats-file`: Save translation statistics to specified file
 - `--help`: Show help information
-- `--version`: Show version information
 
 ### Example Workflow
 
@@ -88,61 +82,9 @@ python -m src.bcxlftranslator.main "./BaseApp.en-US.xlf" "./BaseApp.fr-FR.xlf"
 python -m src.bcxlftranslator.main "C:\Projects\BC\BaseApp.en-US.xlf" "C:\Projects\BC\BaseApp.fr-FR.xlf"
 ```
 
-## Microsoft Business Central Terminology Integration
-
-### Overview
-
-BCXLFTranslator now includes advanced features to ensure translations are consistent with Microsoft's official Business Central terminology. This helps maintain consistency with Microsoft's official localization and improves translation quality for domain-specific terms.
-
-### Terminology Extraction
-
-Before translating your own files, you can extract official Microsoft terminology from reference XLIFF files:
-
-```powershell
-# Extract terminology from Microsoft reference file
-python -m src.bcxlftranslator.main --extract-terminology "path/to/microsoft-reference.xlf" --lang fr-FR
-
-# Multiple files can be processed for comprehensive terminology coverage
-python -m src.bcxlftranslator.main --extract-terminology "path/to/another-reference.xlf" --lang fr-FR
-```
-
-The extraction process:
-1. Analyzes the XLIFF file to identify Business Central object types (Tables, Pages, Fields)
-2. Extracts source and target text pairs
-3. Stores them in a SQLite database for future use
-4. Prioritizes business-specific terms over general vocabulary
-
-### Using Terminology During Translation
-
-When translating your XLIFF files, enable terminology application:
-
-```powershell
-# Use the extracted terminology during translation
-python -m src.bcxlftranslator.main input.xlf output.xlf --use-terminology
-
-# You can also specify a custom terminology database path
-python -m src.bcxlftranslator.main input.xlf output.xlf --use-terminology --terminology-db "path/to/custom/terminology.db"
-```
-
-With terminology enabled, the translation process:
-1. First checks if terms exist in the terminology database
-2. Uses Microsoft's official translations when available
-3. Falls back to Google Translate for terms not found in the database
-4. Adds source attribution notes to the output XLIFF file
-
 ### Translation Source Attribution
 
-When using terminology integration, the output XLIFF includes source attribution notes:
-
-```xml
-<trans-unit id="example-id">
-  <source>Sales Quote</source>
-  <target>Salgstilbud</target>
-  <note from="BCXLFTranslator">Source: Microsoft Terminology</note>
-</trans-unit>
-```
-
-Terms not found in the terminology database will show:
+The output XLIFF includes source attribution notes:
 
 ```xml
 <trans-unit id="example-id">
@@ -154,33 +96,14 @@ Terms not found in the terminology database will show:
 
 ### Translation Statistics
 
-After translation, BCXLFTranslator provides statistics about terminology usage:
+After translation, BCXLFTranslator provides statistics about translation:
 
 ```
 Translation statistics:
 ---------------------
 Total translations: 534
-Microsoft terminology used: 312 (58.4%)
-Google Translate used: 222 (41.6%)
+Google Translate used: 534 (100.0%)
 ```
-
-You can save these statistics to a file for further analysis:
-
-```powershell
-# Save statistics to a CSV file
-python -m src.bcxlftranslator.main input.xlf output.xlf --use-terminology --stats-file "translation-stats.csv"
-```
-
-The CSV file includes detailed information about each translated term and its source.
-
-### Terminology Database Management
-
-The terminology database is stored in SQLite format (default location is in the user's AppData directory). It contains:
-
-1. **Terms Table**: Stores source terms, target terms, context, and object type
-2. **Metadata Table**: Records source files, versions, and language pairs
-
-Advanced users can interact with the database directly using SQL tools if needed.
 
 ## How It Works
 
@@ -189,13 +112,12 @@ BCXLFTranslator processes XLIFF files by:
 1. Parsing the XML structure while preserving namespaces
 2. Identifying source and target languages from file metadata
 3. Finding translation units that need translation
-4. Checking the terminology database for official Microsoft translations
-5. Translating remaining text using Google Translate with intelligent caching
-6. Applying case matching to maintain capitalization patterns
-7. Preserving XML attributes and structure
-8. Adding source attribution notes
-9. Writing the translated content back to the output file
-10. Generating translation statistics
+4. Translating text using Google Translate with intelligent caching
+5. Applying case matching to maintain capitalization patterns
+6. Preserving XML attributes and structure
+7. Adding source attribution notes
+8. Writing the translated content back to the output file
+9. Generating translation statistics
 
 ## Advanced Features
 
@@ -227,14 +149,11 @@ The following configuration parameters can be adjusted in the code:
 - `DELAY_BETWEEN_REQUESTS`: Time delay between translation requests (default: 0.5s)
 - `MAX_RETRIES`: Maximum number of retries for failed translations (default: 3)
 - `RETRY_DELAY`: Time to wait before retrying (default: 3.0s)
-- `TERMINOLOGY_DB_PATH`: Path to the terminology database (default: AppData location)
 
 ## Known Limitations
 
 - Uses the unofficial `googletrans` library which may be subject to rate limiting
-- Terminology database is language-pair specific (e.g., EN→FR)
 - Translation quality depends on Google Translate's capabilities for the language pair
-- Terminology extraction works best with Microsoft official XLIFF files
 
 ## Development
 

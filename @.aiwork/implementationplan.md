@@ -9,9 +9,10 @@ This plan outlines the steps needed to implement in-place file translation for B
    - Verification: The function should create a temporary file, write the translated content to it, and then replace the original file only if translation is successful. If any errors occur, the original file should remain intact.
    - Implementation: Added in-place translation support by detecting when input_file == output_file, creating a temporary file, and replacing the original file only after successful translation. Added comprehensive error handling to ensure the original file remains intact if any errors occur. Created unit tests to verify the functionality.
 
-2. [ ] **Update the command-line interface to support single-file mode**
+2. [X] **Update the command-line interface to support single-file mode**
    - Prompt: "Update the command-line interface in src/bcxlftranslator/main.py to support both the existing two-file mode and a new single-file mode where only an input file is provided."
    - Verification: Running the tool with a single file parameter should perform in-place translation, while running with two file parameters should maintain the existing behavior of writing to a separate output file.
+   - Implementation: Modified the main() function to support single-file mode by detecting when only an input file is provided and using it for both input and output (in-place translation). Updated the help text and examples to document the new single-file mode. Added tests to verify that both modes work correctly.
 
 3. [ ] **Add error handling for in-place translation**
    - Prompt: "Enhance error handling in the translate_xliff function to ensure the original file remains intact if any errors occur during in-place translation."

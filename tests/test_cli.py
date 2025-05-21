@@ -135,3 +135,37 @@ def test_help_accessible_from_multiple_invocations(capsys):
             # Ensure basic help output is present
             assert 'usage:' in captured.out.lower()
             assert 'translate xliff files' in captured.out.lower()
+
+def test_cli_with_two_file_args():
+    """
+    Given the CLI is run with input and output file arguments
+    When the main function is called
+    Then it should call translate_xliff with those arguments
+    """
+    with patch('sys.argv', ['main.py', 'input.xlf', 'output.xlf']):
+        with patch('src.bcxlftranslator.main.translate_xliff') as mock_translate:
+            # Mock the coroutine
+            mock_translate.return_value = Mock()
+            main()
+            # Verify translate_xliff was called with the correct arguments
+            mock_translate.assert_called_once()
+            args, _ = mock_translate.call_args
+            assert args[0] == 'input.xlf'
+            assert args[1] == 'output.xlf'
+
+def test_cli_with_single_file_arg():
+    """
+    Given the CLI is run with only an input file argument
+    When the main function is called
+    Then it should call translate_xliff with the same file for input and output (in-place translation)
+    """
+    with patch('sys.argv', ['main.py', 'input.xlf']):
+        with patch('src.bcxlftranslator.main.translate_xliff') as mock_translate:
+            # Mock the coroutine
+            mock_translate.return_value = Mock()
+            main()
+            # Verify translate_xliff was called with the correct arguments for in-place translation
+            mock_translate.assert_called_once()
+            args, _ = mock_translate.call_args
+            assert args[0] == 'input.xlf'
+            assert args[1] == 'input.xlf'  # Same file for input and output

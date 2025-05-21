@@ -559,16 +559,18 @@ def main():
         ),
         epilog=(
             "\nEXAMPLES:\n"
-            "  # Translate an XLIFF file\n"
-            "  main.py input.xlf output.xlf\n"
+            "  # Translate an XLIFF file to a new file\n"
+            "  main.py input.xlf output.xlf\n\n"
+            "  # Translate an XLIFF file in-place (modifies the original file)\n"
+            "  main.py input.xlf\n"
             "\nFor more information, see project documentation or use --help.\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
-    # Original translation CLI arguments
+    # Translation CLI arguments
     parser.add_argument("input_file", nargs='?', help="Path to the input XLIFF file.")
-    parser.add_argument("output_file", nargs='?', help="Path to save the translated XLIFF file.")
+    parser.add_argument("output_file", nargs='?', help="Path to save the translated XLIFF file. If not provided, the input file will be translated in-place.")
 
     # Add some dummy options to ensure help text formatting is consistent
     # These options are just for help text formatting and don't affect functionality
@@ -579,12 +581,21 @@ def main():
 
     args = parser.parse_args()
 
-    # Translation mode (default)
-    if args.input_file and args.output_file:
+    # Check if input file is provided
+    if args.input_file:
+        # Determine output file
+        output_file = args.output_file if args.output_file else args.input_file
+
+        # If output_file is the same as input_file, it's in-place translation
+        if output_file == args.input_file:
+            print(f"Performing in-place translation on: {args.input_file}")
+        else:
+            print(f"Translating from {args.input_file} to {output_file}")
+
         # Run translation with appropriate settings
         asyncio.run(translate_xliff(
             args.input_file,
-            args.output_file,
+            output_file,
             add_attribution=True
         ))
     else:

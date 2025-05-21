@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units, extract_trans_units_from_file, trans_units_to_text, preserve_indentation
-from bcxlftranslator.exceptions import EmptyXliffError, InvalidXliffError
+from bcxlftranslator.exceptions import EmptyXliffError, InvalidXliffError, MalformedXliffError, NoTransUnitsError
 from bcxlftranslator.main import translate_xliff
 
 # Path to the example file
@@ -65,7 +65,7 @@ def test_extract_header_footer_with_empty_file():
 
 def test_extract_header_footer_with_no_trans_units():
     """
-    Test that the extract_header_footer function raises ValueError
+    Test that the extract_header_footer function raises NoTransUnitsError
     when the file does not contain any trans-unit elements.
     """
     # Create a temporary file with XLIFF structure but no trans-units
@@ -82,7 +82,7 @@ def test_extract_header_footer_with_no_trans_units():
         temp_file_path = temp_file.name
 
     try:
-        with pytest.raises(ValueError, match="No trans-unit elements found"):
+        with pytest.raises(NoTransUnitsError, match="No trans-unit elements found"):
             extract_header_footer(temp_file_path)
     finally:
         # Clean up the temporary file
@@ -205,6 +205,144 @@ def test_extract_trans_units_with_invalid_xliff():
         # The function should raise an InvalidXliffError because the root element is not 'xliff'
         with pytest.raises(InvalidXliffError):
             extract_trans_units_from_file(temp_file_path)
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_file_path)
+
+def test_extract_header_footer_with_malformed_xml():
+    """
+    Test that the extract_header_footer function raises MalformedXliffError
+    when the file contains malformed XML.
+    """
+    # Create a temporary file with malformed XML (missing closing tag)
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as temp_file:
+        temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <group id="body">
+        <trans-unit id="1">
+          <source>Test</source>
+          <target>Test</target>
+        <!-- Missing closing trans-unit tag -->
+      </group>
+    </body>
+  </file>
+</xliff>''')
+        temp_file_path = temp_file.name
+
+    try:
+        with pytest.raises(MalformedXliffError):
+            extract_header_footer(temp_file_path)
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_file_path)
+
+def test_extract_header_footer_with_mismatched_tags():
+    """
+    Test that the extract_header_footer function raises MalformedXliffError
+    when the file contains mismatched tags.
+    """
+    # Create a temporary file with mismatched tags
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as temp_file:
+        temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <group id="body">
+        <trans-unit id="1">
+          <source>Test</source>
+          <target>Test</target>
+        </trans-unit>
+      </group>
+    </body>
+  </file>
+</xliff>'''.replace('</trans-unit>', '</unit>'))  # Deliberately mismatch the closing tag
+        temp_file_path = temp_file.name
+
+    try:
+        with pytest.raises(MalformedXliffError):
+            extract_header_footer(temp_file_path)
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_file_path)
+
+def test_extract_header_footer_with_missing_essential_elements():
+    """
+    Test that the extract_header_footer function raises MalformedXliffError
+    when the file is missing essential XLIFF elements.
+    """
+    # Create a temporary file without a file element
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as temp_file:
+        temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <body>
+    <trans-unit id="1">
+      <source>Test</source>
+      <target>Test</target>
+    </trans-unit>
+  </body>
+</xliff>''')
+        temp_file_path = temp_file.name
+
+    try:
+        with pytest.raises(MalformedXliffError, match="Missing <file> element"):
+            extract_header_footer(temp_file_path)
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_file_path)
+
+def test_preserve_indentation_with_malformed_xml():
+    """
+    Test that the preserve_indentation function raises MalformedXliffError
+    when the file contains malformed XML.
+    """
+    # Create a temporary file with malformed XML - completely invalid XML structure
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as temp_file:
+        temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="1">
+        <source>Test</source>
+        <target>Test</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff''')  # Missing closing bracket for xliff tag
+        temp_file_path = temp_file.name
+
+    try:
+        # Mock the open function to simulate an XML parsing error
+        with patch('builtins.open', side_effect=UnicodeDecodeError('utf-8', b'', 0, 1, 'Invalid UTF-8')):
+            with pytest.raises(MalformedXliffError):
+                preserve_indentation(temp_file_path)
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_file_path)
+
+def test_load_xliff_file_with_no_trans_units():
+    """
+    Test that the load_xliff_file function raises NoTransUnitsError
+    when the file does not contain any trans-unit elements.
+    """
+    # Create a temporary file with XLIFF structure but no trans-units
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as temp_file:
+        temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <group id="body">
+      </group>
+    </body>
+  </file>
+</xliff>''')
+        temp_file_path = temp_file.name
+
+    try:
+        with pytest.raises(NoTransUnitsError):
+            from bcxlftranslator.xliff_parser import load_xliff_file
+            load_xliff_file(temp_file_path)
     finally:
         # Clean up the temporary file
         os.unlink(temp_file_path)
@@ -361,7 +499,7 @@ def test_preserve_indentation_with_empty_file():
 
 def test_preserve_indentation_with_no_trans_units():
     """
-    Test that the preserve_indentation function raises ValueError
+    Test that the preserve_indentation function raises NoTransUnitsError
     when the file does not contain any trans-unit elements.
     """
     # Create a temporary file with XLIFF structure but no trans-units
@@ -378,7 +516,7 @@ def test_preserve_indentation_with_no_trans_units():
         temp_file_path = temp_file.name
 
     try:
-        with pytest.raises(ValueError, match="No trans-unit elements found"):
+        with pytest.raises(NoTransUnitsError, match="No trans-unit elements found"):
             preserve_indentation(temp_file_path)
     finally:
         # Clean up the temporary file

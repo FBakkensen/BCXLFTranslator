@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 import logging
 import re
 
-from .exceptions import InvalidXliffError, EmptyXliffError
+from .exceptions import InvalidXliffError, EmptyXliffError, MalformedXliffError, NoTransUnitsError
 
 def load_xliff_file(file_path):
     """
@@ -18,8 +18,9 @@ def load_xliff_file(file_path):
     Raises:
         FileNotFoundError: If the file does not exist.
         EmptyXliffError: If the file is empty.
-        xml.etree.ElementTree.ParseError: If the XML is malformed.
+        MalformedXliffError: If the XML is malformed.
         InvalidXliffError: If the root element is not <xliff>.
+        NoTransUnitsError: If no trans-unit elements are found in the file.
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -30,12 +31,20 @@ def load_xliff_file(file_path):
     try:
         tree = ET.parse(file_path)
     except ET.ParseError as e:
-        raise
+        raise MalformedXliffError(f"Malformed XML in file: {file_path}. Error: {str(e)}")
 
     root = tree.getroot()
     # Handle namespace in root tag
     # root.tag can be '{namespace}xliff', so check localname
     if root.tag.endswith('xliff'):
+        # Check if the file has at least one trans-unit
+        ns = {'x': 'urn:oasis:names:tc:xliff:document:1.2'}
+        trans_units = root.findall('.//x:trans-unit', ns)
+        if not trans_units:
+            # Try without namespace
+            trans_units = root.findall('.//trans-unit')
+            if not trans_units:
+                raise NoTransUnitsError(f"No trans-unit elements found in {file_path}")
         return tree
     else:
         raise InvalidXliffError(f"Root element is not <xliff>: {root.tag}")
@@ -106,8 +115,9 @@ def extract_trans_units_from_file(file_path):
     Raises:
         FileNotFoundError: If the file does not exist.
         EmptyXliffError: If the file is empty.
-        xml.etree.ElementTree.ParseError: If the XML is malformed.
+        MalformedXliffError: If the XML is malformed.
         InvalidXliffError: If the root element is not <xliff>.
+        NoTransUnitsError: If no trans-unit elements are found in the file.
     """
     xliff_doc = load_xliff_file(file_path)
     return extract_trans_units(xliff_doc)
@@ -134,7 +144,8 @@ def extract_header_footer(file_path):
     Raises:
         FileNotFoundError: If the file does not exist.
         EmptyXliffError: If the file is empty.
-        ValueError: If no trans-unit elements are found in the file.
+        NoTransUnitsError: If no trans-unit elements are found in the file.
+        MalformedXliffError: If the XLIFF file is malformed (e.g., mismatched tags).
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -142,31 +153,62 @@ def extract_header_footer(file_path):
     if os.path.getsize(file_path) == 0:
         raise EmptyXliffError(f"File is empty: {file_path}")
 
-    # Read the entire file as text
-    with open(file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
+    try:
+        # Read the entire file as text
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
 
-    # Find the first trans-unit opening tag (with or without namespace)
-    first_trans_unit_match = re.search(r'<(?:[^>]*:)?trans-unit', content)
-    if not first_trans_unit_match:
-        raise ValueError(f"No trans-unit elements found in {file_path}")
+        # Basic XML validation check
+        if not content.strip().startswith('<?xml') and not content.strip().startswith('<xliff'):
+            raise MalformedXliffError(f"File does not appear to be a valid XML/XLIFF file: {file_path}")
 
-    first_trans_unit_start = first_trans_unit_match.start()
+        # Check for basic XML structure issues
+        if content.count('<') != content.count('>'):
+            raise MalformedXliffError(f"Mismatched XML tags in file: {file_path}")
 
-    # Find the last trans-unit closing tag
-    # First, try to find all closing tags (both with and without namespace)
-    trans_unit_end_tags = list(re.finditer(r'</(?:[^>]*:)?trans-unit>', content))
-    if not trans_unit_end_tags:
-        raise ValueError(f"No closing trans-unit tags found in {file_path}")
+        # Find the first trans-unit opening tag (with or without namespace)
+        first_trans_unit_match = re.search(r'<(?:[^>]*:)?trans-unit', content)
+        if not first_trans_unit_match:
+            raise NoTransUnitsError(f"No trans-unit elements found in {file_path}")
 
-    # Get the position of the last closing tag
-    last_trans_unit_end = trans_unit_end_tags[-1].end()
+        first_trans_unit_start = first_trans_unit_match.start()
 
-    # Extract header and footer
-    header = content[:first_trans_unit_start]
-    footer = content[last_trans_unit_end:]
+        # Find the last trans-unit closing tag
+        # First, try to find all closing tags (both with and without namespace)
+        trans_unit_end_tags = list(re.finditer(r'</(?:[^>]*:)?trans-unit>', content))
+        if not trans_unit_end_tags:
+            raise MalformedXliffError(f"No closing trans-unit tags found in {file_path}. File may be malformed.")
 
-    return header, footer
+        # Get the position of the last closing tag
+        last_trans_unit_end = trans_unit_end_tags[-1].end()
+
+        # Validate that the first opening tag comes before the last closing tag
+        if first_trans_unit_start >= last_trans_unit_end:
+            raise MalformedXliffError(f"Invalid trans-unit structure in file: {file_path}. Opening tag appears after closing tag.")
+
+        # Extract header and footer
+        header = content[:first_trans_unit_start]
+        footer = content[last_trans_unit_end:]
+
+        # Validate that essential XLIFF elements are present in the header
+        if '<xliff' not in header:
+            raise MalformedXliffError(f"Missing <xliff> element in file: {file_path}")
+
+        if '<file' not in header:
+            raise MalformedXliffError(f"Missing <file> element in file: {file_path}")
+
+        # Validate that essential XLIFF closing elements are present in the footer
+        if '</xliff>' not in footer:
+            raise MalformedXliffError(f"Missing </xliff> closing tag in file: {file_path}")
+
+        return header, footer
+
+    except (UnicodeDecodeError, IOError) as e:
+        raise MalformedXliffError(f"Error reading file {file_path}: {str(e)}")
+    except Exception as e:
+        if isinstance(e, (NoTransUnitsError, MalformedXliffError, EmptyXliffError, FileNotFoundError)):
+            raise
+        raise MalformedXliffError(f"Unexpected error processing file {file_path}: {str(e)}")
 
 def preserve_indentation(file_path):
     """
@@ -182,7 +224,8 @@ def preserve_indentation(file_path):
     Raises:
         FileNotFoundError: If the file does not exist.
         EmptyXliffError: If the file is empty.
-        ValueError: If no trans-unit elements are found in the file.
+        NoTransUnitsError: If no trans-unit elements are found in the file.
+        MalformedXliffError: If the XLIFF file is malformed or cannot be read.
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -196,35 +239,45 @@ def preserve_indentation(file_path):
         'child': None
     }
 
-    # Read the file line by line
-    with open(file_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            # Check if the line contains a trans-unit tag
-            if '<trans-unit' in line:
-                # Extract the leading whitespace
-                indentation_patterns['trans_unit'] = line[:line.find('<trans-unit')]
+    try:
+        # Read the file line by line
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                # Check if the line contains a trans-unit tag
+                if '<trans-unit' in line:
+                    # Extract the leading whitespace
+                    indentation_patterns['trans_unit'] = line[:line.find('<trans-unit')]
 
-            # Check if the line contains a child element (source, target, note)
-            elif any(tag in line for tag in ['<source', '<target', '<note']):
-                # Extract the leading whitespace
-                for tag in ['<source', '<target', '<note']:
-                    if tag in line:
-                        indentation_patterns['child'] = line[:line.find(tag)]
-                        break
+                # Check if the line contains a child element (source, target, note)
+                elif any(tag in line for tag in ['<source', '<target', '<note']):
+                    # Extract the leading whitespace
+                    for tag in ['<source', '<target', '<note']:
+                        if tag in line:
+                            indentation_patterns['child'] = line[:line.find(tag)]
+                            break
 
-            # If we have found both patterns, we can stop
-            if all(indentation_patterns.values()):
-                break
+                # If we have found both patterns, we can stop
+                if all(indentation_patterns.values()):
+                    break
 
-    # If we didn't find any trans-unit elements, raise an error
-    if indentation_patterns['trans_unit'] is None:
-        raise ValueError(f"No trans-unit elements found in {file_path}")
+        # If we didn't find any trans-unit elements, raise an error
+        if indentation_patterns['trans_unit'] is None:
+            raise NoTransUnitsError(f"No trans-unit elements found in {file_path}")
 
-    # If we didn't find any child elements, use a default (trans_unit + 2 spaces)
-    if indentation_patterns['child'] is None:
-        indentation_patterns['child'] = indentation_patterns['trans_unit'] + '  '
+        # If we didn't find any child elements, use a default (trans_unit + 2 spaces)
+        if indentation_patterns['child'] is None:
+            indentation_patterns['child'] = indentation_patterns['trans_unit'] + '  '
 
-    return indentation_patterns
+        return indentation_patterns
+
+    except UnicodeDecodeError as e:
+        raise MalformedXliffError(f"Error reading file {file_path}: {str(e)}. The file may not be a valid UTF-8 encoded file.")
+    except IOError as e:
+        raise MalformedXliffError(f"I/O error reading file {file_path}: {str(e)}")
+    except Exception as e:
+        if isinstance(e, (NoTransUnitsError, MalformedXliffError, EmptyXliffError, FileNotFoundError)):
+            raise
+        raise MalformedXliffError(f"Unexpected error processing file {file_path}: {str(e)}")
 
 def trans_units_to_text(trans_units, indent_level=2, indentation_patterns=None):
     """
@@ -418,8 +471,9 @@ def parse_xliff_file(file_path):
     Raises:
         FileNotFoundError: If the file does not exist.
         EmptyXliffError: If the file is empty.
-        xml.etree.ElementTree.ParseError: If the XML is malformed.
+        MalformedXliffError: If the XML is malformed.
         InvalidXliffError: If the root element is not <xliff>.
+        NoTransUnitsError: If no trans-unit elements are found in the file.
         Exception: For any other unexpected errors during processing.
     """
     try:
@@ -432,11 +486,15 @@ def parse_xliff_file(file_path):
         logger.info(f"Extracted {len(trans_units)} trans-units.")
         logger.debug(f"Extracted trans-units: {trans_units}")
 
+        if not trans_units:
+            logger.warning(f"No trans-units found in {file_path}")
+            raise NoTransUnitsError(f"No trans-unit elements found in {file_path}")
+
         return trans_units
 
-    except (FileNotFoundError, EmptyXliffError, ET.ParseError, InvalidXliffError) as e:
+    except (FileNotFoundError, EmptyXliffError, MalformedXliffError, InvalidXliffError, NoTransUnitsError) as e:
         logger.error(f"Error during XLIFF parsing: {e}")
         raise # Re-raise the specific exception
     except Exception as e:
         logger.error(f"An unexpected error occurred during parsing: {e}", exc_info=True)
-        raise # Re-raise any other unexpected exception
+        raise MalformedXliffError(f"Unexpected error processing file {file_path}: {str(e)}")

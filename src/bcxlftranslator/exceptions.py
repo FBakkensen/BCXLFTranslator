@@ -5,3 +5,11 @@ class InvalidXliffError(Exception):
 class EmptyXliffError(Exception):
     """Exception raised when the XLIFF file is empty."""
     pass
+
+class MalformedXliffError(Exception):
+    """Exception raised when the XLIFF file is malformed or has structural issues."""
+    pass
+
+class NoTransUnitsError(Exception):
+    """Exception raised when the XLIFF file does not contain any trans-unit elements."""
+    pass

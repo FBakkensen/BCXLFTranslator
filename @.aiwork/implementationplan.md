@@ -19,13 +19,14 @@ This plan outlines the steps needed to implement in-place file translation for B
    - Verification: If an error occurs during translation, the original file should not be modified, and an appropriate error message should be displayed.
    - Implementation: Enhanced error handling in the translate_xliff function with specific exception handling for different error types (FileNotFoundError, ET.ParseError, InvalidXliffError, etc.). Added validation of the temporary file before replacing the original file. Implemented a backup mechanism to create a temporary backup of the original file before replacement. Improved temporary file cleanup in the finally block with better error messages. All tests pass, confirming that the original file remains intact when errors occur.
 
-4. [ ] **Create unit tests for in-place translation**
+4. [X] **Create unit tests for in-place translation**
    - Prompt: "Create unit tests in tests/test_inplace_translation.py to verify that in-place translation works correctly, including error handling and file preservation."
    - Verification: All tests should pass, confirming that in-place translation works as expected, preserves the original file on errors, and correctly replaces the file on success.
 
-5. [ ] **Update documentation to reflect the new in-place translation feature**
+5. [X] **Update documentation to reflect the new in-place translation feature**
    - Prompt: "Update the README.md file to document the new in-place translation feature, including examples of how to use it."
    - Verification: The README should clearly explain both the two-file mode and the new single-file mode, with examples of how to use each.
+   - Implementation: Updated the README.md file to document the in-place translation feature. Added information to the Features section, updated the Command-Line Arguments section to indicate that the output file is optional, added examples of in-place translation to the Example Workflow section, and added a new section explaining how in-place translation works. All tests pass, confirming that the documentation changes don't affect functionality.
 
 6. [ ] **Implement temporary file cleanup**
    - Prompt: "Ensure that temporary files created during in-place translation are properly cleaned up, even if errors occur."

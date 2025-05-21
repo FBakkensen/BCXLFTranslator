@@ -14,6 +14,10 @@ A Python CLI tool for automating translations of XLIFF files (XML Localization I
 - Support for namespace-specific XML attributes
 - **Translation source attribution**
 - **Statistics reporting**
+- **In-place file translation**:
+  - Supports translating files in-place (modifying the original file)
+  - Uses temporary files to ensure safety during translation
+  - Preserves the original file if any errors occur
 - **Exact XLIFF format preservation**:
   - Preserves the exact header and footer from input files
   - Maintains all file attributes (source-language, target-language, original)
@@ -62,14 +66,17 @@ For convenience on Windows systems, you can use the included batch file to set u
 ### Basic Usage (Windows PowerShell)
 
 ```powershell
-# Using the module directly (recommended for src layout)
+# Two-file mode (separate input and output files)
 python -m src.bcxlftranslator.main input.xlf output.xlf
+
+# Single-file mode (in-place translation)
+python -m src.bcxlftranslator.main input.xlf
 ```
 
 ### Command-Line Arguments
 
 - `input.xlf`: Path to the source XLIFF file to be translated
-- `output.xlf`: Path where the translated XLIFF file should be saved
+- `output.xlf`: (Optional) Path where the translated XLIFF file should be saved. If not provided, the input file will be translated in-place.
 - `--help`: Show help information
 
 ### Example Workflow
@@ -79,11 +86,17 @@ python -m src.bcxlftranslator.main input.xlf output.xlf
 3. Import the translated file back into Business Central
 
 ```powershell
-# Example with specific files in PowerShell
+# Example with specific files in PowerShell (two-file mode)
 python -m src.bcxlftranslator.main "./BaseApp.en-US.xlf" "./BaseApp.fr-FR.xlf"
 
-# With full paths (Windows style)
+# With full paths (Windows style, two-file mode)
 python -m src.bcxlftranslator.main "C:\Projects\BC\BaseApp.en-US.xlf" "C:\Projects\BC\BaseApp.fr-FR.xlf"
+
+# In-place translation (single-file mode)
+python -m src.bcxlftranslator.main "./BaseApp.fr-FR.xlf"
+
+# In-place translation with full path
+python -m src.bcxlftranslator.main "C:\Projects\BC\BaseApp.fr-FR.xlf"
 ```
 
 ### Translation Source Attribution
@@ -125,6 +138,20 @@ BCXLFTranslator processes XLIFF files by:
 10. Recombining the translated trans-units with the original header and footer
 11. Writing the translated content back to the output file while maintaining exact formatting
 12. Generating translation statistics
+
+### In-Place Translation
+
+When using in-place translation (single-file mode), BCXLFTranslator:
+
+1. Creates a temporary file with the same extension as the input file
+2. Performs all translation operations on the temporary file
+3. Validates the temporary file to ensure it's a valid XLIFF file
+4. Only replaces the original file if the translation was successful and the temporary file is valid
+5. Preserves the original file if any errors occur during translation
+6. Provides detailed error messages and recovery options if something goes wrong
+7. Cleans up temporary files after successful translation
+
+This approach ensures that your original XLIFF files are never corrupted, even if an error occurs during translation.
 
 ## Advanced Features
 

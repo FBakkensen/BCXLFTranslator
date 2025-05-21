@@ -44,7 +44,7 @@ This document outlines the step-by-step process for completely removing terminol
 
 ### Task 5: Clean Up main.py
 
-- **Status**: [ ]
+- **Status**: [x]
 - **Description**: Remove any terminology-related code from `src/bcxlftranslator/main.py`, including imports, functions, and CLI argument handling.
 - **Prompt**: "Clean up the main.py file to remove any terminology-related code. This includes imports, functions, and CLI argument handling related to terminology. Keep only the translation-related functionality."
 - **Verification**:

@@ -28,9 +28,10 @@ This plan outlines the steps needed to implement in-place file translation for B
    - Verification: The README should clearly explain both the two-file mode and the new single-file mode, with examples of how to use each.
    - Implementation: Updated the README.md file to document the in-place translation feature. Added information to the Features section, updated the Command-Line Arguments section to indicate that the output file is optional, added examples of in-place translation to the Example Workflow section, and added a new section explaining how in-place translation works. All tests pass, confirming that the documentation changes don't affect functionality.
 
-6. [ ] **Implement temporary file cleanup**
+6. [X] **Implement temporary file cleanup**
    - Prompt: "Ensure that temporary files created during in-place translation are properly cleaned up, even if errors occur."
    - Verification: No temporary files should be left behind after translation, regardless of whether it succeeds or fails.
+   - Implementation: Added a global registry to track temporary files and backup files created during translation. Implemented functions to register, unregister, and clean up these files. Enhanced the translate_xliff function to register temporary files when created and unregister them when handled. Added an atexit handler to clean up any remaining files when the program exits. Created comprehensive tests to verify that temporary files are properly cleaned up in all scenarios. All tests pass, confirming that no temporary files are left behind after translation.
 
 7. [ ] **Add integration tests for in-place translation**
    - Prompt: "Add integration tests to verify that in-place translation works correctly with real XLIFF files from the examples directory."

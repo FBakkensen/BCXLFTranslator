@@ -8,9 +8,10 @@ import pytest
 from unittest.mock import patch, Mock
 import xml.etree.ElementTree as ET
 import asyncio
+import glob
 
-# Import the function to test
-from bcxlftranslator.main import translate_xliff
+# Import the functions to test
+from bcxlftranslator.main import translate_xliff, register_temp_file, unregister_temp_file, _temp_files, cleanup_registered_files
 
 # Sample XLIFF content for testing
 SAMPLE_XLIFF = """<?xml version="1.0" encoding="UTF-8"?>
@@ -147,3 +148,85 @@ async def test_inplace_translation_preserves_header_footer():
             assert '</body>' in translated_content
             assert '</file>' in translated_content
             assert '</xliff>' in translated_content
+
+@pytest.mark.asyncio
+async def test_temporary_file_cleanup():
+    """
+    Test that temporary files created during in-place translation are properly cleaned up.
+    """
+    # Create a temporary directory for the test
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create a test file
+        test_file = os.path.join(temp_dir, 'test_temp_cleanup.xlf')
+        with open(test_file, 'w', encoding='utf-8') as f:
+            f.write(SAMPLE_XLIFF)
+
+        # Clear any existing temporary files from the registry
+        _temp_files.clear()
+
+        # Create a list to track temporary files created during the test
+        temp_files_created = []
+
+        # Mock tempfile.mkstemp to track created temporary files
+        original_mkstemp = tempfile.mkstemp
+
+        def mock_mkstemp(*args, **kwargs):
+            fd, path = original_mkstemp(*args, **kwargs)
+            temp_files_created.append(path)
+            return fd, path
+
+        # Mock the translation function to return a consistent result
+        with patch('tempfile.mkstemp', side_effect=mock_mkstemp):
+            with patch('bcxlftranslator.main.translate_with_retry') as mock_translate:
+                mock_translate.return_value = Mock(text="Hej Verden")
+
+                # Run in-place translation (input_file == output_file)
+                await translate_xliff(test_file, test_file)
+
+                # Verify that at least one temporary file was created
+                assert len(temp_files_created) > 0
+
+                # Verify that all temporary files were cleaned up
+                for temp_file in temp_files_created:
+                    assert not os.path.exists(temp_file), f"Temporary file was not cleaned up: {temp_file}"
+
+                # Verify that the registry is empty
+                assert len(_temp_files) == 0, f"Temporary file registry not empty: {_temp_files}"
+
+@pytest.mark.asyncio
+async def test_cleanup_registered_files():
+    """
+    Test that the cleanup_registered_files function properly cleans up registered temporary files.
+    """
+    # Create a temporary directory for the test
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create some test temporary files
+        temp_file1 = os.path.join(temp_dir, 'temp1.tmp')
+        temp_file2 = os.path.join(temp_dir, 'temp2.tmp')
+
+        # Create the files
+        with open(temp_file1, 'w') as f:
+            f.write('test1')
+        with open(temp_file2, 'w') as f:
+            f.write('test2')
+
+        # Clear any existing temporary files from the registry
+        _temp_files.clear()
+
+        # Register the temporary files
+        register_temp_file(temp_file1)
+        register_temp_file(temp_file2)
+
+        # Verify that the files are registered
+        assert temp_file1 in _temp_files
+        assert temp_file2 in _temp_files
+
+        # Run the cleanup function
+        cleanup_registered_files()
+
+        # Verify that the files were removed
+        assert not os.path.exists(temp_file1), f"File not removed: {temp_file1}"
+        assert not os.path.exists(temp_file2), f"File not removed: {temp_file2}"
+
+        # Verify that the registry is empty
+        assert len(_temp_files) == 0, f"Temporary file registry not empty: {_temp_files}"

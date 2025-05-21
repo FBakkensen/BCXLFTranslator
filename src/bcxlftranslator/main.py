@@ -10,6 +10,7 @@ import aiohttp
 import copy
 import tempfile # Added for temporary file creation
 import shutil # Added for file backup
+import atexit # Added for cleanup on exit
 
 # Import the XLIFF parser functions for header/footer preservation
 try:
@@ -20,6 +21,57 @@ except ImportError:
     # Fall back to absolute import (when installed as package)
     from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units_from_file, trans_units_to_text, preserve_indentation
     from bcxlftranslator.exceptions import InvalidXliffError, EmptyXliffError, MalformedXliffError, NoTransUnitsError
+
+# Global registry to track temporary files for cleanup
+_temp_files = set()
+_backup_files = set()
+
+def register_temp_file(file_path):
+    """Register a temporary file for cleanup"""
+    if file_path and os.path.exists(file_path):
+        _temp_files.add(file_path)
+
+def register_backup_file(file_path):
+    """Register a backup file for cleanup"""
+    if file_path and os.path.exists(file_path):
+        _backup_files.add(file_path)
+
+def unregister_temp_file(file_path):
+    """Unregister a temporary file from cleanup"""
+    if file_path and file_path in _temp_files:
+        _temp_files.remove(file_path)
+
+def unregister_backup_file(file_path):
+    """Unregister a backup file from cleanup"""
+    if file_path and file_path in _backup_files:
+        _backup_files.remove(file_path)
+
+def cleanup_registered_files():
+    """Clean up all registered temporary and backup files"""
+    # Clean up temporary files
+    temp_files_to_remove = _temp_files.copy()
+    for file_path in temp_files_to_remove:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"Cleaned up temporary file: {file_path}")
+                _temp_files.remove(file_path)
+        except Exception as e:
+            print(f"Warning: Could not remove temporary file {file_path}: {e}")
+
+    # Clean up backup files
+    backup_files_to_remove = _backup_files.copy()
+    for file_path in backup_files_to_remove:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"Cleaned up backup file: {file_path}")
+                _backup_files.remove(file_path)
+        except Exception as e:
+            print(f"Warning: Could not remove backup file {file_path}: {e}")
+
+# Register cleanup function to run on exit
+atexit.register(cleanup_registered_files)
 
 # --- Configuration ---
 DELAY_BETWEEN_REQUESTS = 0.5  # increased from 1.0 to 2.0 seconds to reduce rate limiting
@@ -327,6 +379,8 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
             fd, temp_file = tempfile.mkstemp(suffix=os.path.splitext(input_file)[1])
             os.close(fd)  # Close the file descriptor
             actual_output_file = temp_file
+            # Register the temporary file for cleanup
+            register_temp_file(temp_file)
             print(f"In-place translation requested. Using temporary file: {temp_file}")
 
         # Create output directory if it doesn't exist (only for non-in-place translation)
@@ -520,6 +574,8 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                     try:
                         backup_file = input_file + ".bak"
                         shutil.copy2(input_file, backup_file)
+                        # Register the backup file for cleanup
+                        register_backup_file(backup_file)
                         print(f"Created backup of original file: {backup_file}")
                     except Exception as e:
                         print(f"Warning: Could not create backup file - {e}")
@@ -533,10 +589,14 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                     if backup_file and os.path.exists(backup_file):
                         try:
                             os.remove(backup_file)
+                            # Unregister the backup file since it's been removed
+                            unregister_backup_file(backup_file)
                         except Exception as e:
                             print(f"Note: Backup file was not removed and is available at: {backup_file}")
 
                     # Set temp_file to None to indicate it's been handled
+                    # Unregister the temporary file since it's been replaced
+                    unregister_temp_file(temp_file)
                     temp_file = None
                 except PermissionError as e:
                     print(f"Error: Permission denied when replacing original file - {e}")
@@ -612,16 +672,21 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         if temp_file and os.path.exists(temp_file):
             try:
                 os.remove(temp_file)
+                # Unregister the temporary file since it's been removed
+                unregister_temp_file(temp_file)
                 print(f"Temporary file removed: {temp_file}")
             except PermissionError as e:
                 print(f"Warning: Could not remove temporary file due to permission error: {e}")
                 print(f"You may need to remove it manually: {temp_file}")
+                # Keep the file registered for cleanup on exit
             except OSError as e:
                 print(f"Warning: Could not remove temporary file due to OS error: {e}")
                 print(f"You may need to remove it manually: {temp_file}")
+                # Keep the file registered for cleanup on exit
             except Exception as e:
                 print(f"Warning: Could not remove temporary file due to unexpected error: {e}")
                 print(f"You may need to remove it manually: {temp_file}")
+                # Keep the file registered for cleanup on exit
 
 def parse_xliff(*args, **kwargs):
     """

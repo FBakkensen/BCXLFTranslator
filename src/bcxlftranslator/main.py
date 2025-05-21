@@ -9,14 +9,17 @@ import asyncio
 import aiohttp
 import copy
 import tempfile # Added for temporary file creation
+import shutil # Added for file backup
 
 # Import the XLIFF parser functions for header/footer preservation
 try:
     # Try relative import first
     from .xliff_parser import extract_header_footer, extract_trans_units_from_file, trans_units_to_text, preserve_indentation
+    from .exceptions import InvalidXliffError, EmptyXliffError, MalformedXliffError, NoTransUnitsError
 except ImportError:
     # Fall back to absolute import (when installed as package)
     from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units_from_file, trans_units_to_text, preserve_indentation
+    from bcxlftranslator.exceptions import InvalidXliffError, EmptyXliffError, MalformedXliffError, NoTransUnitsError
 
 # --- Configuration ---
 DELAY_BETWEEN_REQUESTS = 0.5  # increased from 1.0 to 2.0 seconds to reduce rate limiting
@@ -483,17 +486,75 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         if is_inplace and temp_file and os.path.exists(temp_file):
             if stats.total_count > 0:
                 try:
+                    # Validate the temporary file before replacing the original
+                    print("Validating translated file before replacing original...")
+                    try:
+                        # Verify that the temporary file is a valid XLIFF file
+                        validation_tree = ET.parse(temp_file)
+                        validation_root = validation_tree.getroot()
+
+                        # Check if it's an XLIFF file
+                        if not validation_root.tag.endswith('xliff'):
+                            raise InvalidXliffError("Temporary file does not contain a valid XLIFF root element")
+
+                        # Check if it has at least one trans-unit
+                        ns = {'x': 'urn:oasis:names:tc:xliff:document:1.2'}
+                        trans_units = validation_root.findall('.//x:trans-unit', ns)
+                        if not trans_units:
+                            # Try without namespace
+                            trans_units = validation_root.findall('.//trans-unit')
+                            if not trans_units:
+                                raise NoTransUnitsError("No trans-unit elements found in temporary file")
+
+                        print("Validation successful. Replacing original file...")
+                    except (ET.ParseError, InvalidXliffError, NoTransUnitsError) as e:
+                        print(f"Error: Validation of temporary file failed - {e}")
+                        print("The original file will not be modified to prevent data loss.")
+                        print(f"Translated content is available in temporary file: {temp_file}")
+                        # Don't delete the temp file so the user can recover the translation
+                        temp_file = None  # Set to None to prevent deletion in finally block
+                        return stats_collector
+
+                    # Create a backup of the original file before replacing it
+                    backup_file = None
+                    try:
+                        backup_file = input_file + ".bak"
+                        shutil.copy2(input_file, backup_file)
+                        print(f"Created backup of original file: {backup_file}")
+                    except Exception as e:
+                        print(f"Warning: Could not create backup file - {e}")
+                        print("Proceeding without backup...")
+
                     # Replace the original file with the temporary file
                     os.replace(temp_file, input_file)
                     print(f"Successfully replaced original file with translated content: {input_file}")
+
+                    # Remove backup if everything went well
+                    if backup_file and os.path.exists(backup_file):
+                        try:
+                            os.remove(backup_file)
+                        except Exception as e:
+                            print(f"Note: Backup file was not removed and is available at: {backup_file}")
+
                     # Set temp_file to None to indicate it's been handled
                     temp_file = None
-                except Exception as e:
-                    print(f"Error replacing original file: {e}")
+                except PermissionError as e:
+                    print(f"Error: Permission denied when replacing original file - {e}")
                     print(f"Translated content is available in temporary file: {temp_file}")
                     # Don't delete the temp file so the user can recover the translation
                     temp_file = None  # Set to None to prevent deletion in finally block
-                    # Return stats but don't continue processing
+                    return stats_collector
+                except OSError as e:
+                    print(f"Error: OS error when replacing original file - {e}")
+                    print(f"Translated content is available in temporary file: {temp_file}")
+                    # Don't delete the temp file so the user can recover the translation
+                    temp_file = None  # Set to None to prevent deletion in finally block
+                    return stats_collector
+                except Exception as e:
+                    print(f"Error: Unexpected error when replacing original file - {e}")
+                    print(f"Translated content is available in temporary file: {temp_file}")
+                    # Don't delete the temp file so the user can recover the translation
+                    temp_file = None  # Set to None to prevent deletion in finally block
                     return stats_collector
             else:
                 print("No translations were performed. Original file will not be modified.")
@@ -513,22 +574,54 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
 
         return stats  # Return statistics for testing and further processing
 
+    except FileNotFoundError as e:
+        print(f"Error: Input file not found - {e}")
+        # Do not replace the original file if an error occurred
+        temp_file = None  # Set to None to prevent deletion in finally block
+        return stats_collector  # Return stats collector even on error
+    except ET.ParseError as e:
+        print(f"Error: XML parsing error - {e}")
+        print("The XLIFF file appears to be malformed. The original file will not be modified.")
+        temp_file = None  # Set to None to prevent deletion in finally block
+        return stats_collector  # Return stats collector even on error
+    except (InvalidXliffError, EmptyXliffError, MalformedXliffError, NoTransUnitsError) as e:
+        print(f"Error: XLIFF validation error - {e}")
+        print("The XLIFF file does not meet the required format. The original file will not be modified.")
+        temp_file = None  # Set to None to prevent deletion in finally block
+        return stats_collector  # Return stats collector even on error
+    except aiohttp.ClientError as e:
+        print(f"Error: Network error during translation - {e}")
+        print("Failed to connect to translation service. The original file will not be modified.")
+        temp_file = None  # Set to None to prevent deletion in finally block
+        return stats_collector  # Return stats collector even on error
+    except PermissionError as e:
+        print(f"Error: Permission denied - {e}")
+        print("Cannot write to the output file due to permission issues. The original file will not be modified.")
+        temp_file = None  # Set to None to prevent deletion in finally block
+        return stats_collector  # Return stats collector even on error
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error: Unexpected error - {e}")
         import traceback
         traceback.print_exc()
+        print("An unexpected error occurred. The original file will not be modified.")
         # Do not replace the original file if an error occurred
         temp_file = None  # Set to None to prevent deletion in finally block
         return stats_collector  # Return stats collector even on error
     finally:
-        # Clean up temporary file if it exists
+        # Clean up temporary file if it exists and hasn't been handled yet
         if temp_file and os.path.exists(temp_file):
             try:
                 os.remove(temp_file)
                 print(f"Temporary file removed: {temp_file}")
+            except PermissionError as e:
+                print(f"Warning: Could not remove temporary file due to permission error: {e}")
+                print(f"You may need to remove it manually: {temp_file}")
+            except OSError as e:
+                print(f"Warning: Could not remove temporary file due to OS error: {e}")
+                print(f"You may need to remove it manually: {temp_file}")
             except Exception as e:
-                print(f"Warning: Could not remove temporary file {temp_file}: {e}")
-                print("You may need to remove it manually.")
+                print(f"Warning: Could not remove temporary file due to unexpected error: {e}")
+                print(f"You may need to remove it manually: {temp_file}")
 
 def parse_xliff(*args, **kwargs):
     """

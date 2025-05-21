@@ -14,9 +14,10 @@ This plan outlines the steps needed to implement in-place file translation for B
    - Verification: Running the tool with a single file parameter should perform in-place translation, while running with two file parameters should maintain the existing behavior of writing to a separate output file.
    - Implementation: Modified the main() function to support single-file mode by detecting when only an input file is provided and using it for both input and output (in-place translation). Updated the help text and examples to document the new single-file mode. Added tests to verify that both modes work correctly.
 
-3. [ ] **Add error handling for in-place translation**
+3. [X] **Add error handling for in-place translation**
    - Prompt: "Enhance error handling in the translate_xliff function to ensure the original file remains intact if any errors occur during in-place translation."
    - Verification: If an error occurs during translation, the original file should not be modified, and an appropriate error message should be displayed.
+   - Implementation: Enhanced error handling in the translate_xliff function with specific exception handling for different error types (FileNotFoundError, ET.ParseError, InvalidXliffError, etc.). Added validation of the temporary file before replacing the original file. Implemented a backup mechanism to create a temporary backup of the original file before replacement. Improved temporary file cleanup in the finally block with better error messages. All tests pass, confirming that the original file remains intact when errors occur.
 
 4. [ ] **Create unit tests for in-place translation**
    - Prompt: "Create unit tests in tests/test_inplace_translation.py to verify that in-place translation works correctly, including error handling and file preservation."

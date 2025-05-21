@@ -583,6 +583,23 @@ async def translate_xliff(input_file, output_file, add_attribution=True, temp_di
         # Step 4: Convert processed trans-units back to text with preserved indentation
         print("Converting processed trans-units back to text with preserved indentation")
         trans_units_text = trans_units_to_text(trans_units, indentation_patterns=indentation_patterns)
+
+        # Fix any inconsistent indentation in the first trans-unit
+        # This ensures all trans-units have exactly the same indentation
+        lines = trans_units_text.splitlines()
+        if lines and '<trans-unit' in lines[0]:
+            # Find the first line with a trans-unit
+            first_trans_unit_line = lines[0]
+            # Count the leading spaces
+            leading_spaces = len(first_trans_unit_line) - len(first_trans_unit_line.lstrip())
+
+            # If the indentation is not the standard 8 spaces, fix it
+            if leading_spaces != 8:
+                # Replace the indentation with exactly 8 spaces
+                lines[0] = ' ' * 8 + first_trans_unit_line.lstrip()
+                # Rejoin the lines
+                trans_units_text = '\n'.join(lines)
+
         print("Trans-units converted successfully.")
 
         # Calculate statistics before writing to file

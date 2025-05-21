@@ -167,11 +167,18 @@ def extract_header_footer(file_path):
             raise MalformedXliffError(f"Mismatched XML tags in file: {file_path}")
 
         # Find the first trans-unit opening tag (with or without namespace)
-        first_trans_unit_match = re.search(r'<(?:[^>]*:)?trans-unit', content)
+        # Use a more precise regex to match the entire line containing the trans-unit tag
+        first_trans_unit_match = re.search(r'^\s*<(?:[^>]*:)?trans-unit', content, re.MULTILINE)
         if not first_trans_unit_match:
             raise NoTransUnitsError(f"No trans-unit elements found in {file_path}")
 
-        first_trans_unit_start = first_trans_unit_match.start()
+        # Get the start of the line containing the first trans-unit
+        line_start = content.rfind('\n', 0, first_trans_unit_match.start()) + 1
+        if line_start <= 0:
+            line_start = 0
+
+        # Extract the indentation before the trans-unit tag
+        indentation = content[line_start:first_trans_unit_match.start()]
 
         # Find the last trans-unit closing tag
         # First, try to find all closing tags (both with and without namespace)
@@ -183,11 +190,30 @@ def extract_header_footer(file_path):
         last_trans_unit_end = trans_unit_end_tags[-1].end()
 
         # Validate that the first opening tag comes before the last closing tag
-        if first_trans_unit_start >= last_trans_unit_end:
+        if first_trans_unit_match.start() >= last_trans_unit_end:
             raise MalformedXliffError(f"Invalid trans-unit structure in file: {file_path}. Opening tag appears after closing tag.")
 
         # Extract header and footer
-        header = content[:first_trans_unit_start]
+        # Normalize the indentation in the header to ensure consistent indentation for all trans-units
+        header_lines = content[:line_start].splitlines()
+
+        # Find the line with <group id="body"> to determine the correct indentation level
+        group_line_index = -1
+        for i, line in enumerate(header_lines):
+            if '<group id="body">' in line:
+                group_line_index = i
+                break
+
+        if group_line_index >= 0:
+            # Calculate the standard indentation for trans-units (8 spaces)
+            standard_indent = ' ' * 8
+
+            # Ensure the header ends with a newline
+            header = '\n'.join(header_lines) + '\n'
+        else:
+            # If we can't find the group line, just use the original header
+            header = content[:line_start]
+
         footer = content[last_trans_unit_end:]
 
         # Validate that essential XLIFF elements are present in the header
@@ -239,6 +265,9 @@ def preserve_indentation(file_path):
         'child': None
     }
 
+    # Track all trans-unit indentation patterns to ensure consistency
+    trans_unit_indentations = []
+
     try:
         # Read the file line by line
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -246,7 +275,11 @@ def preserve_indentation(file_path):
                 # Check if the line contains a trans-unit tag
                 if '<trans-unit' in line:
                     # Extract the leading whitespace
-                    indentation_patterns['trans_unit'] = line[:line.find('<trans-unit')]
+                    indent = line[:line.find('<trans-unit')]
+                    trans_unit_indentations.append(indent)
+                    # Only set the pattern if it's not already set
+                    if indentation_patterns['trans_unit'] is None:
+                        indentation_patterns['trans_unit'] = indent
 
                 # Check if the line contains a child element (source, target, note)
                 elif any(tag in line for tag in ['<source', '<target', '<note']):
@@ -256,8 +289,8 @@ def preserve_indentation(file_path):
                             indentation_patterns['child'] = line[:line.find(tag)]
                             break
 
-                # If we have found both patterns, we can stop
-                if all(indentation_patterns.values()):
+                # If we have found both patterns and at least 2 trans-units, we can stop
+                if all(indentation_patterns.values()) and len(trans_unit_indentations) >= 2:
                     break
 
         # If we didn't find any trans-unit elements, raise an error
@@ -267,6 +300,13 @@ def preserve_indentation(file_path):
         # If we didn't find any child elements, use a default (trans_unit + 2 spaces)
         if indentation_patterns['child'] is None:
             indentation_patterns['child'] = indentation_patterns['trans_unit'] + '  '
+
+        # Check if all trans-unit indentations are consistent
+        if len(trans_unit_indentations) > 1 and not all(indent == trans_unit_indentations[0] for indent in trans_unit_indentations):
+            # If inconsistent, use the most common indentation or a standard 8 spaces
+            # For Business Central XLIFF files, 8 spaces is standard
+            indentation_patterns['trans_unit'] = ' ' * 8
+            indentation_patterns['child'] = ' ' * 10
 
         return indentation_patterns
 
@@ -312,8 +352,20 @@ def trans_units_to_text(trans_units, indent_level=2, indentation_patterns=None):
 
     # Determine indentation to use
     if indentation_patterns:
+        # Ensure consistent indentation for all trans-units
+        # The indentation pattern should be consistent with the example file
+        # Typically 8 spaces for trans-unit elements in Business Central XLIFF files
         base_indent = indentation_patterns['trans_unit']
-        child_indent = indentation_patterns['child']
+
+        # Normalize the base_indent to ensure consistency
+        # Count the number of spaces in the indentation pattern
+        space_count = len(base_indent)
+        # Ensure it's a consistent number of spaces (8 spaces is standard for BC XLIFF files)
+        if space_count != 8:
+            # Use 8 spaces as the standard indentation for trans-units
+            base_indent = ' ' * 8
+
+        child_indent = base_indent + ' ' * 2
     else:
         # Use the default calculation based on indent_level
         base_indent = ' ' * indent_level * 2

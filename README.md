@@ -14,6 +14,10 @@ A Python CLI tool for automating translations of XLIFF files (XML Localization I
 - Support for namespace-specific XML attributes
 - **Translation source attribution**
 - **Statistics reporting**
+- **Exact XLIFF format preservation**:
+  - Preserves the exact header and footer from input files
+  - Maintains all file attributes (source-language, target-language, original)
+  - Preserves XML indentation patterns and formatting
 
 ## Installation
 
@@ -109,15 +113,18 @@ Google Translate used: 534 (100.0%)
 
 BCXLFTranslator processes XLIFF files by:
 
-1. Parsing the XML structure while preserving namespaces
-2. Identifying source and target languages from file metadata
-3. Finding translation units that need translation
-4. Translating text using Google Translate with intelligent caching
-5. Applying case matching to maintain capitalization patterns
-6. Preserving XML attributes and structure
-7. Adding source attribution notes
-8. Writing the translated content back to the output file
-9. Generating translation statistics
+1. Extracting the exact header and footer from the input file
+2. Preserving indentation patterns and formatting from the original file
+3. Parsing the XML structure while preserving namespaces
+4. Identifying source and target languages from file metadata
+5. Finding translation units that need translation
+6. Translating text using Google Translate with intelligent caching
+7. Applying case matching to maintain capitalization patterns
+8. Preserving XML attributes and structure
+9. Adding source attribution notes
+10. Recombining the translated trans-units with the original header and footer
+11. Writing the translated content back to the output file while maintaining exact formatting
+12. Generating translation statistics
 
 ## Advanced Features
 
@@ -135,12 +142,44 @@ Identical source texts are cached to:
 - Reduce the number of API calls
 - Improve translation speed for repeated terms
 
+### XLIFF Format Preservation
+
+The tool precisely preserves the original XLIFF file structure:
+- Maintains the exact header and footer from the input file
+- Preserves all file attributes (source-language, target-language, original)
+- Retains XML namespaces and declarations
+- Maintains consistent indentation patterns for all elements
+- Only modifies the content of trans-units that need translation
+- Preserves all XML attributes on trans-unit elements
+
+Example of preserved formatting from `examples\Example.da-dk.xlf`:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2-transitional.xsd">
+  <file datatype="xml" source-language="en-US" target-language="da-dk" original="Document Automation">
+    <body>
+      <group id="body">
+        <trans-unit id="Table 4110714008 - Field 4106504947 - Property 2879900210" size-unit="char" translate="yes" xml:space="preserve">
+          <source>Attached To SystemID</source>
+          <target>Vedhæftet til SystemID</target>
+          <note from="Developer" annotates="general" priority="2"/>
+          <note from="Xliff Generator" annotates="general" priority="3">Table Attached File - Field Attached To SystemID - Property Caption</note>
+          <note from="BCXLFTranslator">Source: Google Translate</note>
+        </trans-unit>
+        <!-- Additional trans-units -->
+      </group>
+    </body>
+  </file>
+</xliff>
+```
+
 ### Error Handling
 
 The tool includes:
 - Retry mechanisms for transient network errors
 - Detailed logging of translation progress and errors
 - Summary statistics after completion
+- Robust error handling for malformed XLIFF files
 
 ## Configuration
 

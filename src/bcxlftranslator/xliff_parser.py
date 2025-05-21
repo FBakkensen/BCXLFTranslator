@@ -40,9 +40,9 @@ def load_xliff_file(file_path):
     else:
         raise InvalidXliffError(f"Root element is not <xliff>: {root.tag}")
 
-def extract_trans_units(xliff_doc):
+def extract_trans_units_as_dict(xliff_doc):
     """
-    Extract all trans-unit elements from the parsed XLIFF document.
+    Extract all trans-unit elements from the parsed XLIFF document as dictionaries.
 
     Args:
         xliff_doc (xml.etree.ElementTree.ElementTree): Parsed XLIFF document.
@@ -78,6 +78,39 @@ def extract_trans_units(xliff_doc):
             'target_text': target_text
         })
     return trans_units
+
+def extract_trans_units(xliff_doc):
+    """
+    Extract all trans-unit elements from the parsed XLIFF document as XML Element objects.
+
+    Args:
+        xliff_doc (xml.etree.ElementTree.ElementTree): Parsed XLIFF document.
+
+    Returns:
+        list: List of xml.etree.ElementTree.Element objects representing trans-units.
+    """
+    ns = {'x': 'urn:oasis:names:tc:xliff:document:1.2'}
+    root = xliff_doc.getroot()
+    return root.findall('.//x:trans-unit', ns)
+
+def extract_trans_units_from_file(file_path):
+    """
+    Extract all trans-unit elements from an XLIFF file as XML Element objects.
+
+    Args:
+        file_path (str): Path to the XLIFF file.
+
+    Returns:
+        list: List of xml.etree.ElementTree.Element objects representing trans-units.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        EmptyXliffError: If the file is empty.
+        xml.etree.ElementTree.ParseError: If the XML is malformed.
+        InvalidXliffError: If the root element is not <xliff>.
+    """
+    xliff_doc = load_xliff_file(file_path)
+    return extract_trans_units(xliff_doc)
 
 # --- Logging Setup ---
 # Basic configuration for logging within this module
@@ -159,7 +192,7 @@ def parse_xliff_file(file_path):
         logger.debug("XLIFF file loaded successfully.")
 
         logger.info("Extracting trans-units...")
-        trans_units = extract_trans_units(xliff_doc)
+        trans_units = extract_trans_units_as_dict(xliff_doc)
         logger.info(f"Extracted {len(trans_units)} trans-units.")
         logger.debug(f"Extracted trans-units: {trans_units}")
 

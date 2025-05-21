@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='utf-8'?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1">
+        <source>Hello World</source>
+        <target state="translated">Bonjour Le monde</target>
+        <note from="BCXLFTranslator">Source: Google Translate (generated on 2025-05-21 09:38:13)</note>
+      </trans-unit>
+      <trans-unit id="test2">
+        <source>This is a test</source>
+        <target state="translated">Ceci est un test</target>
+        <note from="BCXLFTranslator">Source: Google Translate (generated on 2025-05-21 09:38:13)</note>
+      </trans-unit>
+      <trans-unit id="test3">
+        <source>Business Central</source>
+        <target state="translated">Business Central</target>
+        <note from="BCXLFTranslator">Source: Google Translate (generated on 2025-05-21 09:38:14)</note>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

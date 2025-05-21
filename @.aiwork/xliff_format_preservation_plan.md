@@ -4,7 +4,7 @@ This plan outlines the steps needed to ensure XLIFF files maintain the exact hea
 
 ## Tasks
 
-1. [ ] **Create a function to extract header and footer from input file**
+1. [x] **Create a function to extract header and footer from input file**
    - **Prompt**: "Implement a function called `extract_header_footer` that reads an XLIFF file as text and extracts the exact header (everything before the first trans-unit) and footer (everything after the last trans-unit). Use `examples\Example.da-dk.xlf` as a reference file."
    - **Verification**: The function correctly extracts the header and footer from test XLIFF files with different structures, particularly `examples\Example.da-dk.xlf`. Verify by printing the extracted parts and confirming they match the expected content. Run all tests to ensure functionality works correctly.
 

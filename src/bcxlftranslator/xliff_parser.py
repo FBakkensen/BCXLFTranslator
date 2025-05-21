@@ -1,6 +1,7 @@
 import os
 import xml.etree.ElementTree as ET
 import logging
+import re
 
 from .exceptions import InvalidXliffError, EmptyXliffError
 
@@ -85,6 +86,54 @@ logging.basicConfig(level=logging.INFO, format=log_format)
 logger = logging.getLogger(__name__)
 
 # --- Main Parser Function ---
+
+def extract_header_footer(file_path):
+    """
+    Reads an XLIFF file as text and extracts the exact header (everything before the first trans-unit)
+    and footer (everything after the last trans-unit).
+
+    Args:
+        file_path (str): Path to the XLIFF file.
+
+    Returns:
+        tuple: A tuple containing (header, footer) as strings.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        EmptyXliffError: If the file is empty.
+        ValueError: If no trans-unit elements are found in the file.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    if os.path.getsize(file_path) == 0:
+        raise EmptyXliffError(f"File is empty: {file_path}")
+
+    # Read the entire file as text
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    # Find the first trans-unit opening tag (with or without namespace)
+    first_trans_unit_match = re.search(r'<(?:[^>]*:)?trans-unit', content)
+    if not first_trans_unit_match:
+        raise ValueError(f"No trans-unit elements found in {file_path}")
+
+    first_trans_unit_start = first_trans_unit_match.start()
+
+    # Find the last trans-unit closing tag
+    # First, try to find all closing tags (both with and without namespace)
+    trans_unit_end_tags = list(re.finditer(r'</(?:[^>]*:)?trans-unit>', content))
+    if not trans_unit_end_tags:
+        raise ValueError(f"No closing trans-unit tags found in {file_path}")
+
+    # Get the position of the last closing tag
+    last_trans_unit_end = trans_unit_end_tags[-1].end()
+
+    # Extract header and footer
+    header = content[:first_trans_unit_start]
+    footer = content[last_trans_unit_end:]
+
+    return header, footer
 
 def parse_xliff_file(file_path):
     """

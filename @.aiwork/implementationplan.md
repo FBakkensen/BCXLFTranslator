@@ -33,9 +33,10 @@ This plan outlines the steps needed to implement in-place file translation for B
    - Verification: No temporary files should be left behind after translation, regardless of whether it succeeds or fails.
    - Implementation: Added a global registry to track temporary files and backup files created during translation. Implemented functions to register, unregister, and clean up these files. Enhanced the translate_xliff function to register temporary files when created and unregister them when handled. Added an atexit handler to clean up any remaining files when the program exits. Created comprehensive tests to verify that temporary files are properly cleaned up in all scenarios. All tests pass, confirming that no temporary files are left behind after translation.
 
-7. [ ] **Add integration tests for in-place translation**
+7. [X] **Add integration tests for in-place translation**
    - Prompt: "Add integration tests to verify that in-place translation works correctly with real XLIFF files from the examples directory."
    - Verification: The integration tests should confirm that in-place translation preserves the exact header and footer from the input file while correctly translating the content.
+   - Implementation: Created comprehensive integration tests in tests/test_inplace_integration.py that verify in-place translation works correctly with real XLIFF files from the examples directory. The tests confirm that the format is preserved correctly during translation and that error handling works as expected. All tests pass, confirming that in-place translation preserves the exact header and footer from the input file while correctly translating the content.
 
 8. [ ] **Update help text and usage examples**
    - Prompt: "Update the help text and usage examples in the command-line interface to include information about in-place translation."

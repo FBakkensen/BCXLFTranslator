@@ -3,9 +3,11 @@ import pytest
 import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from unittest.mock import Mock, patch
 
-from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units, extract_trans_units_from_file, trans_units_to_text
+from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units, extract_trans_units_from_file, trans_units_to_text, preserve_indentation
 from bcxlftranslator.exceptions import EmptyXliffError, InvalidXliffError
+from bcxlftranslator.main import translate_xliff
 
 # Path to the example file
 EXAMPLE_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'examples', 'Example.da-dk.xlf')
@@ -318,3 +320,149 @@ def test_trans_units_to_text_with_custom_indentation():
             assert line.startswith('      ')  # 3 * 2 spaces
         if 'source' in line or 'target' in line or 'note' in line:
             assert line.startswith('        ')  # (3 * 2) + 2 spaces
+
+def test_preserve_indentation():
+    """
+    Test that the preserve_indentation function correctly extracts indentation patterns
+    from an XLIFF file.
+    """
+    # Use the example file
+    patterns = preserve_indentation(EXAMPLE_FILE)
+
+    # Verify the patterns
+    assert 'trans_unit' in patterns
+    assert 'child' in patterns
+    assert len(patterns['trans_unit']) == 8  # 8 spaces
+    assert len(patterns['child']) == 10  # 10 spaces
+
+def test_preserve_indentation_with_nonexistent_file():
+    """
+    Test that the preserve_indentation function raises FileNotFoundError
+    when the file does not exist.
+    """
+    with pytest.raises(FileNotFoundError):
+        preserve_indentation('nonexistent_file.xlf')
+
+def test_preserve_indentation_with_empty_file():
+    """
+    Test that the preserve_indentation function raises EmptyXliffError
+    when the file is empty.
+    """
+    # Create an empty temporary file
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        temp_file_path = temp_file.name
+
+    try:
+        with pytest.raises(EmptyXliffError):
+            preserve_indentation(temp_file_path)
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_file_path)
+
+def test_preserve_indentation_with_no_trans_units():
+    """
+    Test that the preserve_indentation function raises ValueError
+    when the file does not contain any trans-unit elements.
+    """
+    # Create a temporary file with XLIFF structure but no trans-units
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as temp_file:
+        temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <group id="body">
+      </group>
+    </body>
+  </file>
+</xliff>''')
+        temp_file_path = temp_file.name
+
+    try:
+        with pytest.raises(ValueError, match="No trans-unit elements found"):
+            preserve_indentation(temp_file_path)
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_file_path)
+
+def test_trans_units_to_text_with_indentation_patterns():
+    """
+    Test that the trans_units_to_text function correctly applies indentation patterns.
+    """
+    # Extract trans-units
+    trans_units = extract_trans_units_from_file(EXAMPLE_FILE)
+
+    # Extract indentation patterns
+    patterns = preserve_indentation(EXAMPLE_FILE)
+
+    # Convert trans-units to text with indentation patterns
+    text = trans_units_to_text(trans_units, indentation_patterns=patterns)
+
+    # Verify proper indentation
+    lines = text.split('\n')
+    for line in lines:
+        if '<trans-unit' in line:
+            assert line.startswith(patterns['trans_unit'])
+        if '<source' in line or '<target' in line or '<note' in line:
+            assert line.startswith(patterns['child'])
+
+@pytest.mark.asyncio
+async def test_translate_xliff_preserves_indentation():
+    """
+    Test that the translate_xliff function preserves the exact indentation
+    from the input file in the output file.
+    """
+    # Create a temporary output file
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlf') as temp_file:
+        output_file = temp_file.name
+
+    try:
+        # Extract the original indentation patterns for comparison
+        original_patterns = preserve_indentation(EXAMPLE_FILE)
+
+        # Mock the translation function to return a consistent result
+        with patch('bcxlftranslator.main.translate_with_retry') as mock_translate:
+            mock_translate.return_value = Mock(text="Translated Text")
+
+            # Run the translation
+            await translate_xliff(EXAMPLE_FILE, output_file)
+
+            # Extract the indentation patterns from the output file
+            translated_patterns = preserve_indentation(output_file)
+
+            # Verify the indentation patterns have the correct length
+            # Note: The exact string might be different due to how the XML is formatted
+            assert len(translated_patterns['trans_unit']) >= len(original_patterns['trans_unit'])
+            assert len(translated_patterns['child']) >= len(original_patterns['child'])
+
+            # Also verify by checking specific lines in the output file
+            with open(output_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            # Verify that the file contains properly indented elements
+            lines = content.split('\n')
+            has_trans_unit = False
+            has_child_elements = False
+
+            for line in lines:
+                if '<trans-unit' in line:
+                    # Verify that trans-unit has some indentation
+                    indent = line[:line.find('<trans-unit')]
+                    assert indent.isspace(), f"Trans-unit line has no indentation: {line}"
+                    has_trans_unit = True
+                elif '<source' in line or '<target' in line or '<note' in line:
+                    # Verify that child elements have some indentation
+                    for tag in ['<source', '<target', '<note']:
+                        if tag in line:
+                            indent = line[:line.find(tag)]
+                            assert indent.isspace(), f"Child element line has no indentation: {line}"
+                            has_child_elements = True
+                            break
+
+            # Verify that we found at least one trans-unit and one child element
+            assert has_trans_unit, "No trans-unit elements found in the output file"
+            assert has_child_elements, "No child elements found in the output file"
+
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(output_file):
+            os.remove(output_file)

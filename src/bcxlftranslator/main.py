@@ -12,10 +12,10 @@ import copy
 # Import the XLIFF parser functions for header/footer preservation
 try:
     # Try relative import first
-    from .xliff_parser import extract_header_footer, extract_trans_units_from_file, trans_units_to_text
+    from .xliff_parser import extract_header_footer, extract_trans_units_from_file, trans_units_to_text, preserve_indentation
 except ImportError:
     # Fall back to absolute import (when installed as package)
-    from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units_from_file, trans_units_to_text
+    from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units_from_file, trans_units_to_text, preserve_indentation
 
 # --- Configuration ---
 DELAY_BETWEEN_REQUESTS = 0.5  # increased from 1.0 to 2.0 seconds to reduce rate limiting
@@ -294,7 +294,12 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         header, footer = extract_header_footer(input_file)
         print("Header and footer extracted successfully.")
 
-        # Step 2: Extract trans-units for processing
+        # Step 2: Extract indentation patterns from the input file
+        print("Extracting indentation patterns")
+        indentation_patterns = preserve_indentation(input_file)
+        print("Indentation patterns extracted successfully.")
+
+        # Step 3: Extract trans-units for processing
         print("Extracting trans-units for processing")
         trans_units = extract_trans_units_from_file(input_file)
         total_units = len(trans_units)
@@ -403,9 +408,9 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         report_progress(total_units, total_units)
         print("\nTranslation complete.")
 
-        # Step 4: Convert processed trans-units back to text
-        print("Converting processed trans-units back to text")
-        trans_units_text = trans_units_to_text(trans_units)
+        # Step 4: Convert processed trans-units back to text with preserved indentation
+        print("Converting processed trans-units back to text with preserved indentation")
+        trans_units_text = trans_units_to_text(trans_units, indentation_patterns=indentation_patterns)
         print("Trans-units converted successfully.")
 
         # Step 5: Combine header, processed trans-units, and footer to create the output file

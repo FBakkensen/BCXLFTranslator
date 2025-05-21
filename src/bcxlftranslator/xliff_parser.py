@@ -168,7 +168,65 @@ def extract_header_footer(file_path):
 
     return header, footer
 
-def trans_units_to_text(trans_units, indent_level=2):
+def preserve_indentation(file_path):
+    """
+    Extracts the indentation pattern from the original trans-units and returns a dictionary
+    with the indentation patterns for different elements.
+
+    Args:
+        file_path (str): Path to the XLIFF file.
+
+    Returns:
+        dict: A dictionary with keys 'trans_unit' and 'child' containing the indentation patterns.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        EmptyXliffError: If the file is empty.
+        ValueError: If no trans-unit elements are found in the file.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    if os.path.getsize(file_path) == 0:
+        raise EmptyXliffError(f"File is empty: {file_path}")
+
+    # Initialize indentation patterns
+    indentation_patterns = {
+        'trans_unit': None,
+        'child': None
+    }
+
+    # Read the file line by line
+    with open(file_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            # Check if the line contains a trans-unit tag
+            if '<trans-unit' in line:
+                # Extract the leading whitespace
+                indentation_patterns['trans_unit'] = line[:line.find('<trans-unit')]
+
+            # Check if the line contains a child element (source, target, note)
+            elif any(tag in line for tag in ['<source', '<target', '<note']):
+                # Extract the leading whitespace
+                for tag in ['<source', '<target', '<note']:
+                    if tag in line:
+                        indentation_patterns['child'] = line[:line.find(tag)]
+                        break
+
+            # If we have found both patterns, we can stop
+            if all(indentation_patterns.values()):
+                break
+
+    # If we didn't find any trans-unit elements, raise an error
+    if indentation_patterns['trans_unit'] is None:
+        raise ValueError(f"No trans-unit elements found in {file_path}")
+
+    # If we didn't find any child elements, use a default (trans_unit + 2 spaces)
+    if indentation_patterns['child'] is None:
+        indentation_patterns['child'] = indentation_patterns['trans_unit'] + '  '
+
+    return indentation_patterns
+
+def trans_units_to_text(trans_units, indent_level=2, indentation_patterns=None):
     """
     Converts a list of processed trans-unit XML Element objects back to properly formatted text,
     preserving all attributes and maintaining consistent indentation.
@@ -176,6 +234,9 @@ def trans_units_to_text(trans_units, indent_level=2):
     Args:
         trans_units (list): List of xml.etree.ElementTree.Element objects representing trans-units.
         indent_level (int, optional): Number of spaces to use for indentation. Defaults to 2.
+            Only used if indentation_patterns is None.
+        indentation_patterns (dict, optional): Dictionary with indentation patterns for different elements.
+            If provided, indent_level is ignored.
 
     Returns:
         str: Properly formatted text representation of the trans-units.
@@ -196,8 +257,14 @@ def trans_units_to_text(trans_units, indent_level=2):
     # Create a string buffer for the output
     output = []
 
-    # Base indentation for trans-units (usually 2 levels deep in XLIFF files)
-    base_indent = ' ' * indent_level * 2
+    # Determine indentation to use
+    if indentation_patterns:
+        base_indent = indentation_patterns['trans_unit']
+        child_indent = indentation_patterns['child']
+    else:
+        # Use the default calculation based on indent_level
+        base_indent = ' ' * indent_level * 2
+        child_indent = base_indent + ' ' * 2
 
     # XML namespace handling for xml:space attribute only
     xml_ns = 'http://www.w3.org/XML/1998/namespace'

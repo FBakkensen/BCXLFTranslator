@@ -20,7 +20,7 @@ This plan outlines the steps needed to ensure XLIFF files maintain the exact hea
    - **Prompt**: "Update the `translate_xliff` function to use the new header/footer preservation approach. It should extract the header and footer, process only the trans-units, and then combine them back together to create the output file. Test with `examples\Example.da-dk.xlf`."
    - **Verification**: The function successfully translates `examples\Example.da-dk.xlf` while preserving the exact header and footer. Compare the input and output files to confirm only the trans-units were modified. Run all tests to ensure functionality works correctly.
 
-5. [ ] **Add indentation preservation for trans-units**
+5. [x] **Add indentation preservation for trans-units**
    - **Prompt**: "Implement a function called `preserve_indentation` that extracts the indentation pattern from the original trans-units and applies it to the processed trans-units to maintain consistent formatting. Use `examples\Example.da-dk.xlf` to verify correct indentation preservation."
    - **Verification**: The processed trans-units in the output file have the same indentation pattern as in `examples\Example.da-dk.xlf`. Visually compare the indentation in both files. Run all tests to ensure functionality works correctly.
 

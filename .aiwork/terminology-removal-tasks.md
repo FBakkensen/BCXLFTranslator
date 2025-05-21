@@ -35,7 +35,7 @@ This document outlines the step-by-step process for completely removing terminol
 
 ### Task 4: Clean Up config.py
 
-- **Status**: [ ]
+- **Status**: [x]
 - **Description**: Remove all terminology-related code from `src/bcxlftranslator/config.py`, including command-line arguments, environment variable handling, and configuration validation.
 - **Prompt**: "Clean up the config.py file to remove all terminology-related code. This includes removing command-line arguments, environment variable handling, and configuration validation related to terminology. Keep only the translation-related functionality."
 - **Verification**:

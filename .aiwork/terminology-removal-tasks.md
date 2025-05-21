@@ -6,7 +6,7 @@ This document outlines the step-by-step process for completely removing terminol
 
 ### Task 1: Update test_config.py to Remove Terminology Tests
 
-- **Status**: [ ]
+- **Status**: [x]
 - **Description**: Modify `tests/test_config.py` to remove or update tests that specifically check for terminology functionality. This includes tests for CLI arguments, config file loading, environment variables, and validation related to terminology.
 - **Prompt**: "Update the test_config.py file to remove all terminology-related tests. Either remove the tests completely or modify them to test only the translation functionality that remains in the codebase."
 - **Verification**:

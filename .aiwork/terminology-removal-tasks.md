@@ -24,7 +24,7 @@ This document outlines the step-by-step process for completely removing terminol
 
 ### Task 3: Check and Update Any Other Test Files for Terminology References
 
-- **Status**: [ ]
+- **Status**: [x]
 - **Description**: Search through all other test files for any references to terminology functionality and update them accordingly.
 - **Prompt**: "Search through all test files (except test_config.py and test_cli.py which we've already handled) for any references to terminology functionality. Update or remove these tests as needed to focus only on translation functionality."
 - **Verification**:

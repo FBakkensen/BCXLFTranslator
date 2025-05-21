@@ -221,16 +221,15 @@ class TestStatisticsReporter:
         Then special characters should be properly escaped in the CSV output
         """
         stats = TranslationStatistics()
-        stats.microsoft_terminology_count = 1
         stats.google_translate_count = 2
         stats.extra_info = 'Value with,comma and "quote"'  # Simulate extra info field
         file_path = tmp_path / "stats.csv"
         reporter = StatisticsReporter()
         # Monkeypatch reporter to include extra_info
         def fake_row(stats):
-            return [stats.microsoft_terminology_count, stats.google_translate_count, stats.extra_info]
+            return [stats.google_translate_count, stats.extra_info]
         reporter._csv_data_row = fake_row
-        reporter._csv_headers = lambda: ["Microsoft Terminology", "Google Translate", "Extra Info"]
+        reporter._csv_headers = lambda: ["Google Translate", "Extra Info"]
         reporter.export_statistics_csv(stats, file_path)
         with open(file_path, encoding="utf-8") as f:
             content = f.read()

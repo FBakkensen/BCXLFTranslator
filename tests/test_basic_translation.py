@@ -12,7 +12,7 @@ from bcxlftranslator.statistics import StatisticsCollector
 
 class TestBasicTranslation:
     """
-    Tests for the basic translation functionality without terminology database.
+    Tests for the basic translation functionality using Google Translate.
     """
 
     def test_translate_xliff_basic(self):

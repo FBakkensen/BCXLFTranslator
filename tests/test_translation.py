@@ -342,8 +342,7 @@ async def test_translation_state_attributes():
         unit = root.find('.//xliff:trans-unit', ns)
         target = unit.find('xliff:target', ns)
 
-        # Verify target attributes - only check that state is 'translated'
-        # since state-qualifier might not be set if terminology wasn't used
+        # Verify target attributes - check that state is 'translated'
         assert target.get('state') == 'translated'
 
         # Verify notes

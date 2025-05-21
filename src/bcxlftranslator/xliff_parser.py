@@ -266,23 +266,44 @@ def trans_units_to_text(trans_units, indent_level=2, indentation_patterns=None):
         base_indent = ' ' * indent_level * 2
         child_indent = base_indent + ' ' * 2
 
-    # XML namespace handling for xml:space attribute only
+    # Define common XML namespaces
     xml_ns = 'http://www.w3.org/XML/1998/namespace'
+    xliff_ns = 'urn:oasis:names:tc:xliff:document:1.2'
+    xsi_ns = 'http://www.w3.org/2001/XMLSchema-instance'
+
+    # Create a namespace mapping for known namespaces
+    ns_map = {
+        f'{{{xml_ns}}}': 'xml:',
+        f'{{{xliff_ns}}}': '',  # Default namespace doesn't need a prefix
+        f'{{{xsi_ns}}}': 'xsi:'
+    }
+
+    # Function to get the prefixed name for a namespaced attribute or tag
+    def get_prefixed_name(name):
+        if not name.startswith('{'):
+            return name
+
+        for ns_uri, prefix in ns_map.items():
+            if name.startswith(ns_uri):
+                local_name = name.replace(ns_uri, '')
+                return f"{prefix}{local_name}"
+
+        # If namespace not in our map, extract and use a generic prefix
+        ns_uri = name[1:name.find('}')]
+        local_name = name[name.find('}')+1:]
+        # Add to our map for future use
+        prefix = f"ns{len(ns_map)-3}:"  # Generate a new prefix
+        ns_map[f'{{{ns_uri}}}'] = prefix
+        return f"{prefix}{local_name}"
 
     for tu in trans_units:
         # Convert the trans-unit to string with proper indentation
         # Handle attributes, including namespaced ones
         attrs = []
         for k, v in tu.attrib.items():
-            # Handle xml:space attribute specially
-            if k == f'{{{xml_ns}}}space':
-                attrs.append(f'xml:space="{v}"')
-            # Handle other namespaced attributes by removing the namespace
-            elif k.startswith('{'):
-                _, local_name = k[1:].split('}', 1)
-                attrs.append(f'{local_name}="{v}"')
-            else:
-                attrs.append(f'{k}="{v}"')
+            # Get the prefixed attribute name
+            prefixed_name = get_prefixed_name(k)
+            attrs.append(f'{prefixed_name}="{v}"')
 
         attr_str = ' '.join(attrs)
         if attr_str:
@@ -290,29 +311,20 @@ def trans_units_to_text(trans_units, indent_level=2, indentation_patterns=None):
         else:
             output.append(f"{base_indent}<trans-unit>")
 
-        # Process child elements with increased indentation
-        child_indent = base_indent + ' ' * 2
-
         # Process each child element (source, target, notes, etc.)
         for child in tu:
-            # Get the local name without namespace
+            # Get the prefixed tag name
             if '}' in child.tag:
-                _, tag_name = child.tag[1:].split('}', 1)
+                tag_name = get_prefixed_name(child.tag)
             else:
                 tag_name = child.tag
 
             # Process attributes, including namespaced ones
             child_attrs = []
             for k, v in child.attrib.items():
-                # Handle xml:space attribute specially
-                if k == f'{{{xml_ns}}}space':
-                    child_attrs.append(f'xml:space="{v}"')
-                # Handle other namespaced attributes by removing the namespace
-                elif k.startswith('{'):
-                    _, local_name = k[1:].split('}', 1)
-                    child_attrs.append(f'{local_name}="{v}"')
-                else:
-                    child_attrs.append(f'{k}="{v}"')
+                # Get the prefixed attribute name
+                prefixed_name = get_prefixed_name(k)
+                child_attrs.append(f'{prefixed_name}="{v}"')
 
             child_attr_str = ' '.join(child_attrs)
 
@@ -345,24 +357,18 @@ def trans_units_to_text(trans_units, indent_level=2, indentation_patterns=None):
             if len(child) > 0:
                 gc_indent = child_indent + ' ' * 2
                 for grandchild in child:
-                    # Get the local name without namespace
+                    # Get the prefixed tag name
                     if '}' in grandchild.tag:
-                        _, gc_tag = grandchild.tag[1:].split('}', 1)
+                        gc_tag = get_prefixed_name(grandchild.tag)
                     else:
                         gc_tag = grandchild.tag
 
                     # Process attributes
                     gc_attrs = []
                     for k, v in grandchild.attrib.items():
-                        # Handle xml:space attribute specially
-                        if k == f'{{{xml_ns}}}space':
-                            gc_attrs.append(f'xml:space="{v}"')
-                        # Handle other namespaced attributes by removing the namespace
-                        elif k.startswith('{'):
-                            _, local_name = k[1:].split('}', 1)
-                            gc_attrs.append(f'{local_name}="{v}"')
-                        else:
-                            gc_attrs.append(f'{k}="{v}"')
+                        # Get the prefixed attribute name
+                        prefixed_name = get_prefixed_name(k)
+                        gc_attrs.append(f'{prefixed_name}="{v}"')
 
                     gc_attr_str = ' '.join(gc_attrs)
 

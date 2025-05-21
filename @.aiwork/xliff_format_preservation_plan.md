@@ -24,7 +24,7 @@ This plan outlines the steps needed to ensure XLIFF files maintain the exact hea
    - **Prompt**: "Implement a function called `preserve_indentation` that extracts the indentation pattern from the original trans-units and applies it to the processed trans-units to maintain consistent formatting. Use `examples\Example.da-dk.xlf` to verify correct indentation preservation."
    - **Verification**: The processed trans-units in the output file have the same indentation pattern as in `examples\Example.da-dk.xlf`. Visually compare the indentation in both files. Run all tests to ensure functionality works correctly.
 
-6. [ ] **Handle XML namespaces in trans-units**
+6. [x] **Handle XML namespaces in trans-units**
    - **Prompt**: "Enhance the trans-unit processing to properly handle XML namespaces, ensuring that namespace prefixes and declarations are preserved in the output file. Test with `examples\Example.da-dk.xlf` which contains namespace declarations."
    - **Verification**: The output file correctly preserves all namespace prefixes and declarations from `examples\Example.da-dk.xlf`. Check that elements with namespaces in the input file maintain those namespaces in the output. Run all tests to ensure functionality works correctly.
 

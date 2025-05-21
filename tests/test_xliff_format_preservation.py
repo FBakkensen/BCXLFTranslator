@@ -405,6 +405,115 @@ def test_trans_units_to_text_with_indentation_patterns():
         if '<source' in line or '<target' in line or '<note' in line:
             assert line.startswith(patterns['child'])
 
+def test_trans_units_to_text_preserves_namespaces():
+    """
+    Test that the trans_units_to_text function correctly preserves XML namespaces
+    in the output text.
+    """
+    # Create a temporary file with namespaced elements and attributes
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as temp_file:
+        temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2-transitional.xsd">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1" size-unit="char" translate="yes" xml:space="preserve" xsi:type="transunit">
+        <source>Hello World</source>
+        <target state="needs-translation"></target>
+        <note from="Developer" annotates="general" priority="2"/>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>''')
+        temp_file_path = temp_file.name
+
+    try:
+        # Extract trans-units
+        trans_units = extract_trans_units_from_file(temp_file_path)
+
+        # Convert trans-units to text
+        text = trans_units_to_text(trans_units)
+
+        # Verify that namespaced attributes are preserved
+        assert 'xml:space="preserve"' in text
+        assert 'xsi:type="transunit"' in text
+
+        # Verify that all attributes are preserved
+        assert 'id="test1"' in text
+        assert 'size-unit="char"' in text
+        assert 'translate="yes"' in text
+
+        # Verify that child elements and their attributes are preserved
+        assert '<source>Hello World</source>' in text
+        assert '<target state="needs-translation"' in text
+        assert '<note from="Developer" annotates="general" priority="2"' in text
+
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_file_path)
+
+@pytest.mark.asyncio
+async def test_translate_xliff_preserves_namespaces():
+    """
+    Test that the translate_xliff function preserves XML namespaces
+    in the output file.
+    """
+    # Create a temporary input file with namespaced elements and attributes
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.xlf') as input_temp_file:
+        input_temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2-transitional.xsd">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1" size-unit="char" translate="yes" xml:space="preserve" xsi:type="transunit">
+        <source>Hello World</source>
+        <target></target>
+        <note from="Developer" annotates="general" priority="2"/>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>''')
+        input_file = input_temp_file.name
+
+    # Create a temporary output file
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlf') as output_temp_file:
+        output_file = output_temp_file.name
+
+    try:
+        # Mock the translation function to return a consistent result
+        with patch('bcxlftranslator.main.translate_with_retry') as mock_translate:
+            mock_translate.return_value = Mock(text="Bonjour le monde")
+
+            # Run the translation
+            await translate_xliff(input_file, output_file)
+
+            # Read the output file
+            with open(output_file, 'r', encoding='utf-8') as f:
+                output_content = f.read()
+
+            # Verify that namespace declarations are preserved in the header
+            assert 'xmlns="urn:oasis:names:tc:xliff:document:1.2"' in output_content
+            assert 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"' in output_content
+            assert 'xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2-transitional.xsd"' in output_content
+
+            # Verify that namespaced attributes are preserved in the trans-units
+            assert 'xml:space="preserve"' in output_content
+            assert 'xsi:type="transunit"' in output_content
+
+            # Verify that all attributes are preserved
+            assert 'id="test1"' in output_content
+            assert 'size-unit="char"' in output_content
+            assert 'translate="yes"' in output_content
+
+            # Verify that the translation was applied (note: match_case may capitalize "Le")
+            assert '<target state="translated">Bonjour' in output_content
+            assert 'monde</target>' in output_content
+
+    finally:
+        # Clean up the temporary files
+        if os.path.exists(input_file):
+            os.remove(input_file)
+        if os.path.exists(output_file):
+            os.remove(output_file)
+
 @pytest.mark.asyncio
 async def test_translate_xliff_preserves_indentation():
     """

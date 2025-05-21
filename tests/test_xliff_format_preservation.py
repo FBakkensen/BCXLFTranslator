@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units, extract_trans_units_from_file, trans_units_to_text, preserve_indentation
+from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units, extract_trans_units_from_file, trans_units_to_text, preserve_indentation, validate_xliff_format
 from bcxlftranslator.exceptions import EmptyXliffError, InvalidXliffError, MalformedXliffError, NoTransUnitsError
 from bcxlftranslator.main import translate_xliff
 
@@ -711,5 +711,290 @@ async def test_translate_xliff_preserves_indentation():
 
     finally:
         # Clean up the temporary file
+        if os.path.exists(output_file):
+            os.remove(output_file)
+
+@pytest.mark.asyncio
+async def test_validate_xliff_format_with_valid_files():
+    """
+    Test that the validate_xliff_format function correctly identifies when an output file
+    preserves the header and footer from the input file.
+    """
+    # Create a temporary output file
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlf') as temp_file:
+        output_file = temp_file.name
+
+    try:
+        # Mock the translation function to return a consistent result
+        with patch('bcxlftranslator.main.translate_with_retry') as mock_translate:
+            mock_translate.return_value = Mock(text="Translated Text")
+
+            # Run the translation
+            await translate_xliff(EXAMPLE_FILE, output_file)
+
+            # Validate the output file
+            is_valid, message = validate_xliff_format(EXAMPLE_FILE, output_file)
+
+            # Verify that the validation passes
+            assert is_valid, f"Validation failed with message: {message}"
+            assert "correctly preserves header and footer" in message
+
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(output_file):
+            os.remove(output_file)
+
+def test_validate_xliff_format_with_modified_header():
+    """
+    Test that the validate_xliff_format function correctly identifies when an output file
+    has a modified header compared to the input file.
+    """
+    # Create a temporary input file
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.xlf') as input_temp_file:
+        input_temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1">
+        <source>Hello World</source>
+        <target></target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>''')
+        input_file = input_temp_file.name
+
+    # Create a temporary output file with a modified header
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.xlf') as output_temp_file:
+        output_temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<!-- Added comment -->
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1">
+        <source>Hello World</source>
+        <target>Bonjour le monde</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>''')
+        output_file = output_temp_file.name
+
+    try:
+        # Validate the output file
+        is_valid, message = validate_xliff_format(input_file, output_file)
+
+        # Verify that the validation fails due to modified header
+        assert not is_valid, "Validation should fail with modified header"
+        assert "Header in output file does not match" in message
+
+    finally:
+        # Clean up the temporary files
+        if os.path.exists(input_file):
+            os.remove(input_file)
+        if os.path.exists(output_file):
+            os.remove(output_file)
+
+def test_validate_xliff_format_with_modified_footer():
+    """
+    Test that the validate_xliff_format function correctly identifies when an output file
+    has a modified footer compared to the input file.
+    """
+    # Create a temporary input file
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.xlf') as input_temp_file:
+        input_temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1">
+        <source>Hello World</source>
+        <target></target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>''')
+        input_file = input_temp_file.name
+
+    # Create a temporary output file with a modified footer
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.xlf') as output_temp_file:
+        output_temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1">
+        <source>Hello World</source>
+        <target>Bonjour le monde</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff><!-- Added comment -->''')
+        output_file = output_temp_file.name
+
+    try:
+        # Validate the output file
+        is_valid, message = validate_xliff_format(input_file, output_file)
+
+        # Verify that the validation fails due to modified footer
+        assert not is_valid, "Validation should fail with modified footer"
+        assert "Footer in output file does not match" in message
+
+    finally:
+        # Clean up the temporary files
+        if os.path.exists(input_file):
+            os.remove(input_file)
+        if os.path.exists(output_file):
+            os.remove(output_file)
+
+def test_validate_xliff_format_with_different_trans_unit_count():
+    """
+    Test that the validate_xliff_format function correctly identifies when an output file
+    has a different number of trans-units compared to the input file.
+    """
+    # Create a temporary input file with two trans-units
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.xlf') as input_temp_file:
+        input_temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1">
+        <source>Hello World</source>
+        <target></target>
+      </trans-unit>
+      <trans-unit id="test2">
+        <source>Goodbye World</source>
+        <target></target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>''')
+        input_file = input_temp_file.name
+
+    # Create a temporary output file with only one trans-unit
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.xlf') as output_temp_file:
+        output_temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1">
+        <source>Hello World</source>
+        <target>Bonjour le monde</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>''')
+        output_file = output_temp_file.name
+
+    try:
+        # Validate the output file
+        is_valid, message = validate_xliff_format(input_file, output_file)
+
+        # Verify that the validation fails due to different trans-unit count
+        assert not is_valid, "Validation should fail with different trans-unit count"
+        assert "Number of trans-units differs" in message
+
+    finally:
+        # Clean up the temporary files
+        if os.path.exists(input_file):
+            os.remove(input_file)
+        if os.path.exists(output_file):
+            os.remove(output_file)
+
+def test_validate_xliff_format_with_different_trans_unit_ids():
+    """
+    Test that the validate_xliff_format function correctly identifies when an output file
+    has different trans-unit IDs compared to the input file.
+    """
+    # Create a temporary input file
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.xlf') as input_temp_file:
+        input_temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1">
+        <source>Hello World</source>
+        <target></target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>''')
+        input_file = input_temp_file.name
+
+    # Create a temporary output file with a different trans-unit ID
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.xlf') as output_temp_file:
+        output_temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test2">
+        <source>Hello World</source>
+        <target>Bonjour le monde</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>''')
+        output_file = output_temp_file.name
+
+    try:
+        # Validate the output file
+        is_valid, message = validate_xliff_format(input_file, output_file)
+
+        # Verify that the validation fails due to different trans-unit IDs
+        assert not is_valid, "Validation should fail with different trans-unit IDs"
+        assert "Trans-unit IDs in output file do not match" in message
+
+    finally:
+        # Clean up the temporary files
+        if os.path.exists(input_file):
+            os.remove(input_file)
+        if os.path.exists(output_file):
+            os.remove(output_file)
+
+def test_validate_xliff_format_with_no_translation():
+    """
+    Test that the validate_xliff_format function correctly identifies when an output file
+    has not been translated (no changes to target elements).
+    """
+    # Create a temporary input file
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.xlf') as input_temp_file:
+        input_temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1">
+        <source>Hello World</source>
+        <target></target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>''')
+        input_file = input_temp_file.name
+
+    # Create a temporary output file with no translation (empty target)
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.xlf') as output_temp_file:
+        output_temp_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file datatype="xml" source-language="en-US" target-language="fr-FR">
+    <body>
+      <trans-unit id="test1">
+        <source>Hello World</source>
+        <target></target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>''')
+        output_file = output_temp_file.name
+
+    try:
+        # Validate the output file
+        is_valid, message = validate_xliff_format(input_file, output_file)
+
+        # Verify that the validation fails due to no translation
+        assert not is_valid, "Validation should fail with no translation"
+        assert "No translation appears to have occurred" in message
+
+    finally:
+        # Clean up the temporary files
+        if os.path.exists(input_file):
+            os.remove(input_file)
         if os.path.exists(output_file):
             os.remove(output_file)

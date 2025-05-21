@@ -32,15 +32,15 @@ This plan outlines the steps needed to ensure XLIFF files maintain the exact hea
    - **Prompt**: "Add robust error handling to the header/footer extraction process to gracefully handle malformed XLIFF files or files without trans-units. Create test cases based on modifications to `examples\Example.da-dk.xlf`."
    - **Verification**: The code handles various edge cases (empty files, files without trans-units, malformed XML) without crashing and provides helpful error messages. Run all tests to ensure functionality works correctly.
 
-8. [ ] **Create a validation function for output files**
+8. [x] **Create a validation function for output files**
    - **Prompt**: "Implement a function called `validate_xliff_format` that verifies the output file maintains the exact header and footer from the input file while correctly updating the trans-units. Test with `examples\Example.da-dk.xlf` and its translated output."
    - **Verification**: The validation function correctly identifies whether an output file preserves the header and footer from `examples\Example.da-dk.xlf`. Run all tests to ensure functionality works correctly.
 
-9. [ ] **Add unit tests for the new functions**
+9. [x] **Add unit tests for the new functions**
    - **Prompt**: "Create comprehensive unit tests for all the new functions related to header/footer preservation, covering various XLIFF file structures and edge cases. Include specific tests using `examples\Example.da-dk.xlf`."
    - **Verification**: All tests pass and achieve good code coverage for the new functionality. Run all tests to ensure functionality works correctly.
 
-10. [ ] **Update documentation to reflect the new approach**
+10. [x] **Update documentation to reflect the new approach**
     - **Prompt**: "Update the project documentation to explain the new header/footer preservation approach and its benefits for maintaining exact XLIFF formatting. Include `examples\Example.da-dk.xlf` as an example in the documentation."
     - **Verification**: The documentation clearly explains the new approach and provides examples of how it preserves the exact format using `examples\Example.da-dk.xlf`. Run all tests to ensure functionality works correctly.
 

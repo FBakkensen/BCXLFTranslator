@@ -457,6 +457,101 @@ def trans_units_to_text(trans_units, indent_level=2, indentation_patterns=None):
     # Join all lines with newlines
     return '\n'.join(output)
 
+def validate_xliff_format(input_file, output_file):
+    """
+    Verifies that the output file maintains the exact header and footer from the input file
+    while correctly updating the trans-units.
+
+    Args:
+        input_file (str): Path to the original input XLIFF file.
+        output_file (str): Path to the translated output XLIFF file.
+
+    Returns:
+        tuple: A tuple containing (is_valid, message) where:
+            - is_valid (bool): True if the output file correctly preserves the header and footer, False otherwise.
+            - message (str): A message explaining the validation result.
+
+    Raises:
+        FileNotFoundError: If either file does not exist.
+        EmptyXliffError: If either file is empty.
+        MalformedXliffError: If either file is malformed.
+    """
+    try:
+        # Extract header and footer from both files
+        input_header, input_footer = extract_header_footer(input_file)
+        output_header, output_footer = extract_header_footer(output_file)
+
+        # Normalize whitespace for comparison
+        def normalize_whitespace(text):
+            # Replace all whitespace sequences with a single space
+            import re
+            text = re.sub(r'\s+', ' ', text)
+            # Remove leading/trailing whitespace
+            return text.strip()
+
+        # Compare headers (ignoring whitespace differences)
+        if normalize_whitespace(input_header) != normalize_whitespace(output_header):
+            return False, "Header in output file does not match the header in input file."
+
+        # Compare footers (ignoring whitespace differences)
+        if normalize_whitespace(input_footer) != normalize_whitespace(output_footer):
+            return False, "Footer in output file does not match the footer in input file."
+
+        # Verify that trans-units have been updated
+        input_trans_units = extract_trans_units_from_file(input_file)
+        output_trans_units = extract_trans_units_from_file(output_file)
+
+        # Check if the number of trans-units is the same
+        if len(input_trans_units) != len(output_trans_units):
+            return False, f"Number of trans-units differs: input={len(input_trans_units)}, output={len(output_trans_units)}"
+
+        # Check if the IDs of trans-units match
+        input_ids = [tu.get('id') for tu in input_trans_units]
+        output_ids = [tu.get('id') for tu in output_trans_units]
+
+        if input_ids != output_ids:
+            return False, "Trans-unit IDs in output file do not match those in input file."
+
+        # Verify that at least some trans-units have been translated
+        # (This is a basic check to ensure translation has occurred)
+        ns = {'x': 'urn:oasis:names:tc:xliff:document:1.2'}
+
+        # Count trans-units with empty targets in input file
+        input_empty_targets = sum(1 for tu in input_trans_units
+                                if tu.find('x:target', ns) is None or
+                                (tu.find('x:target', ns) is not None and
+                                 (tu.find('x:target', ns).text is None or tu.find('x:target', ns).text.strip() == '')))
+
+        # Count trans-units with empty targets in output file
+        output_empty_targets = sum(1 for tu in output_trans_units
+                                 if tu.find('x:target', ns) is None or
+                                 (tu.find('x:target', ns) is not None and
+                                  (tu.find('x:target', ns).text is None or tu.find('x:target', ns).text.strip() == '')))
+
+        # If there were empty targets in the input but fewer in the output, translation likely occurred
+        if input_empty_targets > 0 and output_empty_targets < input_empty_targets:
+            return True, "Output file correctly preserves header and footer while updating trans-units."
+        elif input_empty_targets == 0:
+            # If there were no empty targets in the input, check if any target text changed
+            input_targets = [tu.find('x:target', ns).text if tu.find('x:target', ns) is not None and tu.find('x:target', ns).text else ""
+                            for tu in input_trans_units]
+            output_targets = [tu.find('x:target', ns).text if tu.find('x:target', ns) is not None and tu.find('x:target', ns).text else ""
+                             for tu in output_trans_units]
+
+            if input_targets != output_targets:
+                return True, "Output file correctly preserves header and footer while updating trans-units."
+            else:
+                return False, "No translation appears to have occurred in the trans-units."
+        else:
+            return False, "No translation appears to have occurred in the trans-units."
+
+    except (FileNotFoundError, EmptyXliffError, MalformedXliffError) as e:
+        logger.error(f"Error during XLIFF validation: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during validation: {e}", exc_info=True)
+        raise MalformedXliffError(f"Unexpected error validating files: {str(e)}")
+
 def parse_xliff_file(file_path):
     """
     Parses an XLIFF file to extract translation units.

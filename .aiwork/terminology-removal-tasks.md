@@ -15,7 +15,7 @@ This document outlines the step-by-step process for completely removing terminol
 
 ### Task 2: Update test_cli.py to Remove Terminology Expectations
 
-- **Status**: [ ]
+- **Status**: [x]
 - **Description**: Modify `tests/test_cli.py` to remove expectations for terminology-related options in the CLI help text and argument handling.
 - **Prompt**: "Update the test_cli.py file to remove any expectations for terminology-related options in the CLI help text and argument handling. Make sure the tests only check for translation-related functionality."
 - **Verification**:

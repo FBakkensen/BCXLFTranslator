@@ -68,13 +68,13 @@ async def test_progress_reporting(capsys):
 
     try:
         # Mock translate_with_retry to avoid actual translation calls
-        with patch('bcxlftranslator.main.translate_with_retry') as mock_translate:
+        with patch('src.bcxlftranslator.main.translate_with_retry') as mock_translate:
             # Setup mock translator for fallback
             mock_translate.return_value = Mock(text="Translated Text")
-            
+
             # Run translation
             stats = await translate_xliff(temp_input, temp_output)
-            
+
             # Verify stats were returned
             assert stats is not None
 
@@ -85,18 +85,18 @@ async def test_progress_reporting(capsys):
             # Verify progress reporting - check for key information
             # We expect to see the number of units found
             assert "2" in output_text and ("units" in output_text or "trans-unit" in output_text)
-            
+
             # We expect to see progress percentage
             assert any(percent in output_text for percent in ["50%", "100%"])
-            
+
             # We expect to see a completion message
             assert any(msg.lower() in output_text for msg in [
-                "complete", 
+                "complete",
                 "finished",
                 "done",
                 "translated"
             ])
-            
+
             # Verify the output file was created
             assert os.path.exists(temp_output)
 
@@ -125,7 +125,7 @@ def test_help_accessible_from_multiple_invocations(capsys):
     """
     Given the CLI is run with -h and --help
     When the main function is called
-    Then help should be accessible and show terminology options in both cases
+    Then help should be accessible in both cases
     """
     for help_flag in ['--help', '-h']:
         with patch('sys.argv', ['main.py', help_flag]):

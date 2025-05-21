@@ -26,6 +26,48 @@ except ImportError:
 _temp_files = set()
 _backup_files = set()
 
+def are_on_different_drives(path1, path2):
+    """
+    Check if two file paths are on different drives (Windows) or filesystems (Unix).
+
+    Args:
+        path1 (str): First file path
+        path2 (str): Second file path
+
+    Returns:
+        bool: True if the paths are on different drives/filesystems, False otherwise
+    """
+    if os.name == 'nt':  # Windows
+        # Extract drive letters (e.g., 'C:' from 'C:\path\to\file')
+        drive1 = os.path.splitdrive(os.path.abspath(path1))[0].upper()
+        drive2 = os.path.splitdrive(os.path.abspath(path2))[0].upper()
+        return drive1 != drive2
+    else:  # Unix-like systems
+        # For Unix, we'll consider them on the same filesystem
+        # A more accurate check would use os.stat().st_dev, but that's not needed for now
+        return False
+
+def copy_file_contents(src, dst):
+    """
+    Copy file contents from source to destination.
+
+    Args:
+        src (str): Source file path
+        dst (str): Destination file path
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        with open(src, 'rb') as src_file:
+            with open(dst, 'wb') as dst_file:
+                # Copy in chunks to handle large files efficiently
+                shutil.copyfileobj(src_file, dst_file)
+        return True
+    except Exception as e:
+        print(f"Error copying file contents: {e}")
+        return False
+
 def register_temp_file(file_path):
     """Register a temporary file for cleanup"""
     if file_path and os.path.exists(file_path):
@@ -339,7 +381,7 @@ def remove_specific_notes(trans_unit, ns):
 
     return len(notes_to_remove) > 0
 
-async def translate_xliff(input_file, output_file, add_attribution=True):
+async def translate_xliff(input_file, output_file, add_attribution=True, temp_dir=None):
     """
     Main translation function - googletrans 4.0.2 version using async context manager
     with header/footer preservation approach
@@ -349,6 +391,8 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         output_file (str): Path to save the translated XLIFF file. If same as input_file,
                           performs in-place translation using a temporary file.
         add_attribution (bool): Whether to add attribution notes to translation units
+        temp_dir (str, optional): Custom temporary directory to use for in-place translation.
+                                 If provided, must be on the same drive as the input file.
 
     Returns:
         StatisticsCollector or None: Statistics object if successful, None if failed
@@ -375,13 +419,29 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
 
         # If in-place translation, create a temporary file
         if is_inplace:
-            # Create a temporary file with the same extension as the input file
-            fd, temp_file = tempfile.mkstemp(suffix=os.path.splitext(input_file)[1])
-            os.close(fd)  # Close the file descriptor
+            # If a custom temporary directory is provided, use it
+            if temp_dir and os.path.isdir(temp_dir):
+                # Create a temporary file in the specified directory
+                file_ext = os.path.splitext(input_file)[1]
+                temp_file = os.path.join(temp_dir, f"bcxlf_temp_{int(time.time())}{file_ext}")
+                with open(temp_file, 'w') as f:
+                    pass  # Create an empty file
+                print(f"Using custom temporary directory: {temp_dir}")
+            else:
+                # Create a temporary file with the same extension as the input file
+                fd, temp_file = tempfile.mkstemp(suffix=os.path.splitext(input_file)[1])
+                os.close(fd)  # Close the file descriptor
+
             actual_output_file = temp_file
             # Register the temporary file for cleanup
             register_temp_file(temp_file)
             print(f"In-place translation requested. Using temporary file: {temp_file}")
+
+            # Check if the temporary file is on the same drive as the input file
+            if are_on_different_drives(temp_file, input_file):
+                print("Warning: Temporary file is on a different drive than the input file.")
+                print("This may cause issues when replacing the original file.")
+                print("Consider using --temp-dir option to specify a temporary directory on the same drive.")
 
         # Create output directory if it doesn't exist (only for non-in-place translation)
         if not is_inplace:
@@ -581,9 +641,24 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                         print(f"Warning: Could not create backup file - {e}")
                         print("Proceeding without backup...")
 
-                    # Replace the original file with the temporary file
-                    os.replace(temp_file, input_file)
-                    print(f"Successfully replaced original file with translated content: {input_file}")
+                    # Check if the files are on different drives
+                    if are_on_different_drives(temp_file, input_file):
+                        print("Files are on different drives. Using copy method instead of direct replacement...")
+                        # Copy the contents of the temporary file to the original file
+                        if copy_file_contents(temp_file, input_file):
+                            print(f"Successfully copied translated content to original file: {input_file}")
+                            # Remove the temporary file after successful copy
+                            try:
+                                os.remove(temp_file)
+                                unregister_temp_file(temp_file)
+                            except Exception as e:
+                                print(f"Warning: Could not remove temporary file after copy: {e}")
+                        else:
+                            raise OSError("Failed to copy file contents between drives")
+                    else:
+                        # Replace the original file with the temporary file (same drive)
+                        os.replace(temp_file, input_file)
+                        print(f"Successfully replaced original file with translated content: {input_file}")
 
                     # Remove backup if everything went well
                     if backup_file and os.path.exists(backup_file):
@@ -605,8 +680,15 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                     temp_file = None  # Set to None to prevent deletion in finally block
                     return stats_collector
                 except OSError as e:
-                    print(f"Error: OS error when replacing original file - {e}")
-                    print(f"Translated content is available in temporary file: {temp_file}")
+                    error_message = str(e)
+                    if "different disk drive" in error_message or "WinError 17" in error_message:
+                        print(f"Error: Cannot move file between different drives - {e}")
+                        print("This is likely because the temporary file and the original file are on different drives.")
+                        print("Try using a temporary directory on the same drive as the original file.")
+                        print(f"Translated content is available in temporary file: {temp_file}")
+                    else:
+                        print(f"Error: OS error when replacing original file - {e}")
+                        print(f"Translated content is available in temporary file: {temp_file}")
                     # Don't delete the temp file so the user can recover the translation
                     temp_file = None  # Set to None to prevent deletion in finally block
                     return stats_collector
@@ -748,6 +830,8 @@ def main():
                        help="  Set maximum number of retries for failed translations (default: 3).")
     parser.add_argument("--safe", action="store_true",
                        help="  Enable additional safety measures for in-place translation (already enabled by default).")
+    parser.add_argument("--temp-dir", type=str,
+                       help="  Specify a custom temporary directory for in-place translation. Useful when input file is on a different drive than the system temp directory.")
 
     args = parser.parse_args()
 
@@ -766,7 +850,8 @@ def main():
         asyncio.run(translate_xliff(
             args.input_file,
             output_file,
-            add_attribution=True
+            add_attribution=True,
+            temp_dir=args.temp_dir
         ))
     else:
         parser.print_help()

@@ -113,7 +113,7 @@ This document outlines the step-by-step process for completely removing terminol
 
 ### Task 12: Clean Up Unused Dependencies
 
-- **Status**: [ ]
+- **Status**: [x]
 - **Description**: Remove any dependencies that were only needed for the terminology functionality.
 - **Prompt**: "Review the project dependencies in requirements.txt and setup.py to identify and remove any that were only needed for the terminology functionality. Update the dependency list to include only what's needed for the translation functionality."
 - **Verification**:

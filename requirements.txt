@@ -1,5 +1,5 @@
 # requirements.txt
-googletrans==4.0.2
-aiohttp
-pytest
-pytest-asyncio  # For testing async functions
+googletrans==4.0.2  # Required for Google Translate functionality
+aiohttp  # Required by googletrans for async HTTP requests
+pytest  # Required for testing
+pytest-asyncio  # Required for testing async functions

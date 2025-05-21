@@ -562,7 +562,7 @@ class StatisticsManager:
 
         Args:
             collector (StatisticsCollector): The collector to track in.
-            source (str): The translation source ("Microsoft Terminology" or "Google Translate").
+            source (str): The translation source (e.g., "Google Translate").
             **kwargs: Additional metadata about the translation.
         """
         if self._enabled:

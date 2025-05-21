@@ -132,7 +132,6 @@ class StatisticsReporter:
                 stats = detailed_collector.get_statistics_by_object_type(obj_type)
                 report.append(f"\n{obj_type}:")
                 report.append(f"  Total: {stats.total_count}")
-                report.append(f"  Microsoft Terminology: {stats.microsoft_terminology_count} ({stats.microsoft_terminology_percentage:.1f}%)")
                 report.append(f"  Google Translate: {stats.google_translate_count} ({stats.google_translate_percentage:.1f}%)")
 
         # Join all lines with newlines

@@ -8,6 +8,112 @@ import os # Added for path checking
 import asyncio
 import aiohttp
 import copy
+import tempfile # Added for temporary file creation
+import shutil # Added for file backup
+import atexit # Added for cleanup on exit
+
+# Import the XLIFF parser functions for header/footer preservation
+try:
+    # Try relative import first
+    from .xliff_parser import extract_header_footer, extract_trans_units_from_file, trans_units_to_text, preserve_indentation
+    from .exceptions import InvalidXliffError, EmptyXliffError, MalformedXliffError, NoTransUnitsError
+except ImportError:
+    # Fall back to absolute import (when installed as package)
+    from bcxlftranslator.xliff_parser import extract_header_footer, extract_trans_units_from_file, trans_units_to_text, preserve_indentation
+    from bcxlftranslator.exceptions import InvalidXliffError, EmptyXliffError, MalformedXliffError, NoTransUnitsError
+
+# Global registry to track temporary files for cleanup
+_temp_files = set()
+_backup_files = set()
+
+def are_on_different_drives(path1, path2):
+    """
+    Check if two file paths are on different drives (Windows) or filesystems (Unix).
+
+    Args:
+        path1 (str): First file path
+        path2 (str): Second file path
+
+    Returns:
+        bool: True if the paths are on different drives/filesystems, False otherwise
+    """
+    if os.name == 'nt':  # Windows
+        # Extract drive letters (e.g., 'C:' from 'C:\path\to\file')
+        drive1 = os.path.splitdrive(os.path.abspath(path1))[0].upper()
+        drive2 = os.path.splitdrive(os.path.abspath(path2))[0].upper()
+        return drive1 != drive2
+    else:  # Unix-like systems
+        # For Unix, we'll consider them on the same filesystem
+        # A more accurate check would use os.stat().st_dev, but that's not needed for now
+        return False
+
+def copy_file_contents(src, dst):
+    """
+    Copy file contents from source to destination.
+
+    Args:
+        src (str): Source file path
+        dst (str): Destination file path
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        with open(src, 'rb') as src_file:
+            with open(dst, 'wb') as dst_file:
+                # Copy in chunks to handle large files efficiently
+                shutil.copyfileobj(src_file, dst_file)
+        return True
+    except Exception as e:
+        print(f"Error copying file contents: {e}")
+        return False
+
+def register_temp_file(file_path):
+    """Register a temporary file for cleanup"""
+    if file_path and os.path.exists(file_path):
+        _temp_files.add(file_path)
+
+def register_backup_file(file_path):
+    """Register a backup file for cleanup"""
+    if file_path and os.path.exists(file_path):
+        _backup_files.add(file_path)
+
+def unregister_temp_file(file_path):
+    """Unregister a temporary file from cleanup"""
+    if file_path and file_path in _temp_files:
+        _temp_files.remove(file_path)
+
+def unregister_backup_file(file_path):
+    """Unregister a backup file from cleanup"""
+    if file_path and file_path in _backup_files:
+        _backup_files.remove(file_path)
+
+def cleanup_registered_files():
+    """Clean up all registered temporary and backup files"""
+    # Clean up temporary files
+    temp_files_to_remove = _temp_files.copy()
+    for file_path in temp_files_to_remove:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"Cleaned up temporary file: {file_path}")
+                _temp_files.remove(file_path)
+        except Exception as e:
+            print(f"Warning: Could not remove temporary file {file_path}: {e}")
+
+    # Clean up backup files
+    backup_files_to_remove = _backup_files.copy()
+    for file_path in backup_files_to_remove:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"Cleaned up backup file: {file_path}")
+                _backup_files.remove(file_path)
+        except Exception as e:
+            print(f"Warning: Could not remove backup file {file_path}: {e}")
+
+# Register cleanup function to run on exit
+atexit.register(cleanup_registered_files)
 
 # --- Configuration ---
 DELAY_BETWEEN_REQUESTS = 0.5  # increased from 1.0 to 2.0 seconds to reduce rate limiting
@@ -248,14 +354,45 @@ def strip_namespace(elem):
     for child in elem:
         strip_namespace(child)
 
-async def translate_xliff(input_file, output_file, add_attribution=True):
+def remove_specific_notes(trans_unit, ns):
+    """
+    Remove note elements with from="NAB AL Tool Refresh Xlf" from a trans-unit.
+
+    Args:
+        trans_unit (ET.Element): The trans-unit element to process
+        ns (str): The namespace prefix to use for finding elements
+
+    Returns:
+        bool: True if any notes were removed, False otherwise
+    """
+    if trans_unit is None:
+        return False
+
+    # Find all note elements
+    notes_to_remove = []
+    for child in trans_unit:
+        # Check if this is a note element with the specific 'from' attribute
+        if child.tag.endswith('note') and child.get('from') == "NAB AL Tool Refresh Xlf":
+            notes_to_remove.append(child)
+
+    # Remove the identified notes
+    for note in notes_to_remove:
+        trans_unit.remove(note)
+
+    return len(notes_to_remove) > 0
+
+async def translate_xliff(input_file, output_file, add_attribution=True, temp_dir=None):
     """
     Main translation function - googletrans 4.0.2 version using async context manager
+    with header/footer preservation approach
 
     Args:
         input_file (str): Path to the input XLIFF file
-        output_file (str): Path to save the translated XLIFF file
+        output_file (str): Path to save the translated XLIFF file. If same as input_file,
+                          performs in-place translation using a temporary file.
         add_attribution (bool): Whether to add attribution notes to translation units
+        temp_dir (str, optional): Custom temporary directory to use for in-place translation.
+                                 If provided, must be on the same drive as the input file.
 
     Returns:
         StatisticsCollector or None: Statistics object if successful, None if failed
@@ -269,18 +406,66 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         from bcxlftranslator.statistics import StatisticsCollector
     stats_collector = StatisticsCollector()
 
+    # Check if in-place translation is requested (input_file == output_file)
+    is_inplace = input_file == output_file
+    temp_file = None
+    actual_output_file = output_file
+
     try:
         # Check if input file exists
         if not os.path.exists(input_file):
             print(f"Error: Input file '{input_file}' not found.")
             return stats_collector  # Return empty stats instead of None
 
-        # Create output directory if it doesn't exist
-        output_dir = os.path.dirname(output_file)
-        if output_dir and not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        # If in-place translation, create a temporary file
+        if is_inplace:
+            # If a custom temporary directory is provided, use it
+            if temp_dir and os.path.isdir(temp_dir):
+                # Create a temporary file in the specified directory
+                file_ext = os.path.splitext(input_file)[1]
+                temp_file = os.path.join(temp_dir, f"bcxlf_temp_{int(time.time())}{file_ext}")
+                with open(temp_file, 'w') as f:
+                    pass  # Create an empty file
+                print(f"Using custom temporary directory: {temp_dir}")
+            else:
+                # Create a temporary file with the same extension as the input file
+                fd, temp_file = tempfile.mkstemp(suffix=os.path.splitext(input_file)[1])
+                os.close(fd)  # Close the file descriptor
 
-        # Parse the XLIFF file
+            actual_output_file = temp_file
+            # Register the temporary file for cleanup
+            register_temp_file(temp_file)
+            print(f"In-place translation requested. Using temporary file: {temp_file}")
+
+            # Check if the temporary file is on the same drive as the input file
+            if are_on_different_drives(temp_file, input_file):
+                print("Warning: Temporary file is on a different drive than the input file.")
+                print("This may cause issues when replacing the original file.")
+                print("Consider using --temp-dir option to specify a temporary directory on the same drive.")
+
+        # Create output directory if it doesn't exist (only for non-in-place translation)
+        if not is_inplace:
+            output_dir = os.path.dirname(output_file)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+
+        # Step 1: Extract header and footer from the input file
+        print(f"Extracting header and footer from {input_file}")
+        header, footer = extract_header_footer(input_file)
+        print("Header and footer extracted successfully.")
+
+        # Step 2: Extract indentation patterns from the input file
+        print("Extracting indentation patterns")
+        indentation_patterns = preserve_indentation(input_file)
+        print("Indentation patterns extracted successfully.")
+
+        # Step 3: Extract trans-units for processing
+        print("Extracting trans-units for processing")
+        trans_units = extract_trans_units_from_file(input_file)
+        total_units = len(trans_units)
+        print(f"Found {total_units} translation units.")
+
+        # Parse the XLIFF file to get language information
         tree = ET.parse(input_file)
         root = tree.getroot()
 
@@ -308,16 +493,11 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         if target_lang_code not in LANGUAGES:
             print(f"Warning: Target language '{target_lang_code}' not in supported languages list. Trying anyway...")
 
-
-
-        # Find all translation units
-        trans_units = root.findall(f".//{ns}trans-unit")
-        total_units = len(trans_units)
-        print(f"Found {total_units} translation units.")
-
         # Translation cache to avoid re-translating the same text
         translation_cache = {}
 
+        # Step 3: Process the trans-units
+        print("Processing trans-units...")
         # Create a translator instance using async context manager
         async with Translator() as translator:
             # Process each translation unit
@@ -325,20 +505,20 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                 # Report progress
                 report_progress(i, total_units)
 
-                # Check if this unit should be translated
-                translate_attr = trans_unit.get("translate", "yes")
-                if translate_attr.lower() == "no":
-                    continue
-
                 # Get source and target elements
                 source_elem = trans_unit.find(f"{ns}source")
                 target_elem = trans_unit.find(f"{ns}target")
 
                 if source_elem is not None and target_elem is not None:
                     source_text = source_elem.text or ""
+                    target_text = target_elem.text or ""
 
                     # Skip empty source text
                     if not source_text.strip():
+                        continue
+
+                    # Skip if target already has content
+                    if target_text.strip():
                         continue
 
                     # Translate using Google Translate
@@ -350,6 +530,10 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                         try:
                             # Translate the text
                             result = await translate_with_retry(translator, source_text, target_lang_code, source_lang_code)
+                            if result is None:
+                                print(f"Warning: Translation failed for '{source_text}': No result returned")
+                                # Skip this unit rather than exiting
+                                continue
                             target_text = result.text
 
                             # Cache the translation
@@ -358,6 +542,11 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                             print(f"Warning: Translation failed for '{source_text}': {e}")
                             # Skip this unit rather than exiting
                             continue
+
+                    # Skip if translation failed
+                    if target_text is None:
+                        print(f"Warning: No translation result for '{source_text}'")
+                        continue
 
                     # Track Google Translate usage in statistics
                     stats_collector.track_translation("Google Translate",
@@ -370,6 +559,9 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                     # Update the target element
                     target_elem.text = target_text
                     target_elem.set("state", "translated")
+
+                    # Remove specific notes with from="NAB AL Tool Refresh Xlf"
+                    remove_specific_notes(trans_unit, ns)
 
                     # Add attribution note if requested
                     if add_attribution:
@@ -388,8 +580,145 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         report_progress(total_units, total_units)
         print("\nTranslation complete.")
 
-        # Calculate and display statistics
+        # Step 4: Convert processed trans-units back to text with preserved indentation
+        print("Converting processed trans-units back to text with preserved indentation")
+        trans_units_text = trans_units_to_text(trans_units, indentation_patterns=indentation_patterns)
+
+        # Fix any inconsistent indentation in the first trans-unit
+        # This ensures all trans-units have exactly the same indentation
+        lines = trans_units_text.splitlines()
+        if lines and '<trans-unit' in lines[0]:
+            # Find the first line with a trans-unit
+            first_trans_unit_line = lines[0]
+            # Count the leading spaces
+            leading_spaces = len(first_trans_unit_line) - len(first_trans_unit_line.lstrip())
+
+            # If the indentation is not the standard 8 spaces, fix it
+            if leading_spaces != 8:
+                # Replace the indentation with exactly 8 spaces
+                lines[0] = ' ' * 8 + first_trans_unit_line.lstrip()
+                # Rejoin the lines
+                trans_units_text = '\n'.join(lines)
+
+        print("Trans-units converted successfully.")
+
+        # Calculate statistics before writing to file
         stats = stats_collector.get_statistics()
+
+        # Step 5: Combine header, processed trans-units, and footer to create the output file
+        print(f"Creating output file: {actual_output_file}")
+        with open(actual_output_file, 'w', encoding='utf-8') as f:
+            f.write(header)
+            f.write(trans_units_text)
+            f.write(footer)
+        print(f"Output file created successfully: {actual_output_file}")
+
+        # If in-place translation was requested, only replace the original file if translations were performed
+        if is_inplace and temp_file and os.path.exists(temp_file):
+            if stats.total_count > 0:
+                try:
+                    # Validate the temporary file before replacing the original
+                    print("Validating translated file before replacing original...")
+                    try:
+                        # Verify that the temporary file is a valid XLIFF file
+                        validation_tree = ET.parse(temp_file)
+                        validation_root = validation_tree.getroot()
+
+                        # Check if it's an XLIFF file
+                        if not validation_root.tag.endswith('xliff'):
+                            raise InvalidXliffError("Temporary file does not contain a valid XLIFF root element")
+
+                        # Check if it has at least one trans-unit
+                        ns = {'x': 'urn:oasis:names:tc:xliff:document:1.2'}
+                        trans_units = validation_root.findall('.//x:trans-unit', ns)
+                        if not trans_units:
+                            # Try without namespace
+                            trans_units = validation_root.findall('.//trans-unit')
+                            if not trans_units:
+                                raise NoTransUnitsError("No trans-unit elements found in temporary file")
+
+                        print("Validation successful. Replacing original file...")
+                    except (ET.ParseError, InvalidXliffError, NoTransUnitsError) as e:
+                        print(f"Error: Validation of temporary file failed - {e}")
+                        print("The original file will not be modified to prevent data loss.")
+                        print(f"Translated content is available in temporary file: {temp_file}")
+                        # Don't delete the temp file so the user can recover the translation
+                        temp_file = None  # Set to None to prevent deletion in finally block
+                        return stats_collector
+
+                    # Create a backup of the original file before replacing it
+                    backup_file = None
+                    try:
+                        backup_file = input_file + ".bak"
+                        shutil.copy2(input_file, backup_file)
+                        # Register the backup file for cleanup
+                        register_backup_file(backup_file)
+                        print(f"Created backup of original file: {backup_file}")
+                    except Exception as e:
+                        print(f"Warning: Could not create backup file - {e}")
+                        print("Proceeding without backup...")
+
+                    # Check if the files are on different drives
+                    if are_on_different_drives(temp_file, input_file):
+                        print("Files are on different drives. Using copy method instead of direct replacement...")
+                        # Copy the contents of the temporary file to the original file
+                        if copy_file_contents(temp_file, input_file):
+                            print(f"Successfully copied translated content to original file: {input_file}")
+                            # Remove the temporary file after successful copy
+                            try:
+                                os.remove(temp_file)
+                                unregister_temp_file(temp_file)
+                            except Exception as e:
+                                print(f"Warning: Could not remove temporary file after copy: {e}")
+                        else:
+                            raise OSError("Failed to copy file contents between drives")
+                    else:
+                        # Replace the original file with the temporary file (same drive)
+                        os.replace(temp_file, input_file)
+                        print(f"Successfully replaced original file with translated content: {input_file}")
+
+                    # Remove backup if everything went well
+                    if backup_file and os.path.exists(backup_file):
+                        try:
+                            os.remove(backup_file)
+                            # Unregister the backup file since it's been removed
+                            unregister_backup_file(backup_file)
+                        except Exception as e:
+                            print(f"Note: Backup file was not removed and is available at: {backup_file}")
+
+                    # Set temp_file to None to indicate it's been handled
+                    # Unregister the temporary file since it's been replaced
+                    unregister_temp_file(temp_file)
+                    temp_file = None
+                except PermissionError as e:
+                    print(f"Error: Permission denied when replacing original file - {e}")
+                    print(f"Translated content is available in temporary file: {temp_file}")
+                    # Don't delete the temp file so the user can recover the translation
+                    temp_file = None  # Set to None to prevent deletion in finally block
+                    return stats_collector
+                except OSError as e:
+                    error_message = str(e)
+                    if "different disk drive" in error_message or "WinError 17" in error_message:
+                        print(f"Error: Cannot move file between different drives - {e}")
+                        print("This is likely because the temporary file and the original file are on different drives.")
+                        print("Try using a temporary directory on the same drive as the original file.")
+                        print(f"Translated content is available in temporary file: {temp_file}")
+                    else:
+                        print(f"Error: OS error when replacing original file - {e}")
+                        print(f"Translated content is available in temporary file: {temp_file}")
+                    # Don't delete the temp file so the user can recover the translation
+                    temp_file = None  # Set to None to prevent deletion in finally block
+                    return stats_collector
+                except Exception as e:
+                    print(f"Error: Unexpected error when replacing original file - {e}")
+                    print(f"Translated content is available in temporary file: {temp_file}")
+                    # Don't delete the temp file so the user can recover the translation
+                    temp_file = None  # Set to None to prevent deletion in finally block
+                    return stats_collector
+            else:
+                print("No translations were performed. Original file will not be modified.")
+                # Set temp_file to None to indicate we're not using it
+                temp_file = None
 
         # Print statistics
         try:
@@ -402,98 +731,61 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
         reporter = StatisticsReporter()
         reporter.print_statistics(stats)
 
-        # Write the translated XLIFF to the output file
-        try:
-            # Try to use lxml for better namespace handling if available
-            try:
-                from lxml import etree
-                print("Using lxml for namespace preservation.")
-                # Convert ElementTree to string
-                xml_str = ET.tostring(root, encoding='utf-8')
-                lxml_root = etree.fromstring(xml_str)
-                # Remove all namespace prefixes (force default namespace)
-                for elem in lxml_root.iter():
-                    if not hasattr(elem.tag, 'find'):
-                        continue
-                    if elem.tag.startswith('{'):
-                        uri, local = elem.tag[1:].split('}')
-                        elem.tag = local
-                # Register the default namespace
-                default_ns = root.tag.split('}')[0][1:]
-                nsmap = {None: default_ns}
-                new_root = etree.Element('xliff', nsmap=nsmap)
-                # Copy attributes from original root
-                for k, v in lxml_root.attrib.items():
-                    new_root.set(k, v)
-                # Move children to new root
-                for child in lxml_root:
-                    new_root.append(child)
-                tree_lxml = etree.ElementTree(new_root)
-                tree_lxml.write(output_file, encoding="utf-8", xml_declaration=True, pretty_print=True)
-                print("lxml write complete.")
-            except ImportError:
-                print("lxml not available; using ElementTree fallback.")
-                # Deep copy and strip namespaces
-                clean_root = copy.deepcopy(root)
-                strip_namespace(clean_root)
-                # Set correct default namespace on root
-                clean_root.set('xmlns', 'urn:oasis:names:tc:xliff:document:1.2')
-                clean_tree = ET.ElementTree(clean_root)
-                # Add new helper function for pretty-printing XML using ElementTree
-                def indent(element, indent_level=0):
-                    i = "\n" + "  " * indent_level
-                    if len(element):
-                        if not element.text or not element.text.strip():
-                            element.text = i + "  "
-                        for child in element:
-                            indent(child, indent_level + 1)
-                            if not child.tail or not child.tail.strip():
-                                child.tail = i + "  "
-                        if not child.tail or not child.tail.strip():
-                            child.tail = i
-                    else:
-                        if indent_level and (not element.tail or not element.tail.strip()):
-                            element.tail = i
-                # In translate_xliff ElementTree fallback, add indentation before write
-                indent(clean_root)
-                clean_tree.write(output_file, encoding="utf-8", xml_declaration=True)
-                print("Wrote cleaned XLIFF without prefixes using ElementTree fallback.")
-            except Exception as e:
-                print(f"Exception in lxml branch: {e}. Using regex fallback.")
-                import re
-                tree.write(output_file, encoding="utf-8", xml_declaration=True)
-                with open(output_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                # Remove ns0: from opening and closing tags, even with whitespace, newlines, or attributes
-                content = re.sub(r'<(/?)\s*ns0:', r'<\1', content, flags=re.MULTILINE)
-                # Remove xmlns:ns0 definitions (with possible whitespace)
-                content = re.sub(r'\s+xmlns:ns0="[^"]*"', '', content)
-                # Remove any leftover empty xmlns attributes (e.g., xmlns:ns0="")
-                content = re.sub(r'\s+xmlns:ns0=""', '', content)
-                # Remove any remaining xmlns attributes with empty value
-                content = re.sub(r'\s+xmlns=""', '', content)
-                # Ensure the root xliff tag has the correct default namespace (force replace the first <xliff ...>)
-                content = re.sub(r'<xliff(\s|>)', r'<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2"\1', content, count=1)
-                # Optionally clean up double spaces
-                content = re.sub(r'\s{2,}', ' ', content)
-                with open(output_file, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                print("Warning: Could not fully preserve namespace via lxml; applied string-based fallback.")
-                print('--- OUTPUT FILE CONTENT (regex fallback) ---')
-                print(content)
-                print('---------------------------------------------')
-        except Exception as e:
-            print(f"Error writing XLIFF output: {e}")
-            raise
-        print(f"Translated XLIFF saved to {output_file}")
-
         return stats  # Return statistics for testing and further processing
 
+    except FileNotFoundError as e:
+        print(f"Error: Input file not found - {e}")
+        # Do not replace the original file if an error occurred
+        temp_file = None  # Set to None to prevent deletion in finally block
+        return stats_collector  # Return stats collector even on error
+    except ET.ParseError as e:
+        print(f"Error: XML parsing error - {e}")
+        print("The XLIFF file appears to be malformed. The original file will not be modified.")
+        temp_file = None  # Set to None to prevent deletion in finally block
+        return stats_collector  # Return stats collector even on error
+    except (InvalidXliffError, EmptyXliffError, MalformedXliffError, NoTransUnitsError) as e:
+        print(f"Error: XLIFF validation error - {e}")
+        print("The XLIFF file does not meet the required format. The original file will not be modified.")
+        temp_file = None  # Set to None to prevent deletion in finally block
+        return stats_collector  # Return stats collector even on error
+    except aiohttp.ClientError as e:
+        print(f"Error: Network error during translation - {e}")
+        print("Failed to connect to translation service. The original file will not be modified.")
+        temp_file = None  # Set to None to prevent deletion in finally block
+        return stats_collector  # Return stats collector even on error
+    except PermissionError as e:
+        print(f"Error: Permission denied - {e}")
+        print("Cannot write to the output file due to permission issues. The original file will not be modified.")
+        temp_file = None  # Set to None to prevent deletion in finally block
+        return stats_collector  # Return stats collector even on error
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error: Unexpected error - {e}")
         import traceback
         traceback.print_exc()
+        print("An unexpected error occurred. The original file will not be modified.")
+        # Do not replace the original file if an error occurred
+        temp_file = None  # Set to None to prevent deletion in finally block
         return stats_collector  # Return stats collector even on error
+    finally:
+        # Clean up temporary file if it exists and hasn't been handled yet
+        if temp_file and os.path.exists(temp_file):
+            try:
+                os.remove(temp_file)
+                # Unregister the temporary file since it's been removed
+                unregister_temp_file(temp_file)
+                print(f"Temporary file removed: {temp_file}")
+            except PermissionError as e:
+                print(f"Warning: Could not remove temporary file due to permission error: {e}")
+                print(f"You may need to remove it manually: {temp_file}")
+                # Keep the file registered for cleanup on exit
+            except OSError as e:
+                print(f"Warning: Could not remove temporary file due to OS error: {e}")
+                print(f"You may need to remove it manually: {temp_file}")
+                # Keep the file registered for cleanup on exit
+            except Exception as e:
+                print(f"Warning: Could not remove temporary file due to unexpected error: {e}")
+                print(f"You may need to remove it manually: {temp_file}")
+                # Keep the file registered for cleanup on exit
 
 def parse_xliff(*args, **kwargs):
     """
@@ -518,30 +810,65 @@ def main():
     """Main entry point for the translator"""
     parser = argparse.ArgumentParser(
         description=(
-            "Translate XLIFF files for Microsoft Dynamics 365 Business Central using Google Translate (via googletrans library) with caching.\n\n"
-            "This tool provides a simple way to translate XLIFF files using Google Translate."
+            "Translate XLIFF files for Microsoft Dynamics 365 Business Central\n"
+            "using Google Translate (via googletrans library) with caching.\n\n"
+            "This tool provides a simple way to translate XLIFF files using Google Translate.\n\n"
+            "Two operation modes are supported:\n"
+            "1. Two-file mode: Translate from an input file to a separate output file\n"
+            "2. In-place mode: Translate a file and update it directly (with safety measures)\n\n"
+            "In-place translation uses temporary files and validation to ensure the original\n"
+            "file is only modified if translation is successful. A backup is created before\n"
+            "replacing the original file for additional safety."
         ),
         epilog=(
             "\nEXAMPLES:\n"
-            "  # Translate an XLIFF file\n"
-            "  main.py input.xlf output.xlf\n"
-            "\nFor more information, see project documentation or use --help with any command.\n"
-        )
+            "  # Two-file mode: Translate an XLIFF file to a new file\n"
+            "  main.py input.xlf output.xlf\n\n"
+            "  # In-place mode: Translate an XLIFF file in-place (modifies the original file)\n"
+            "  main.py input.xlf\n\n"
+            "  # Example with language-specific files\n"
+            "  main.py BaseApp.en-US.xlf BaseApp.fr-FR.xlf    # Two-file mode\n"
+            "  main.py BaseApp.fr-FR.xlf                      # In-place mode\n"
+            "\nFor more information, see project documentation or use --help.\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
-    # Original translation CLI arguments
-    parser.add_argument("input_file", nargs='?', help="Path to the input XLIFF file.")
-    parser.add_argument("output_file", nargs='?', help="Path to save the translated XLIFF file.")
+    # Translation CLI arguments
+    parser.add_argument("input_file", nargs='?',
+                       help="Path to the input XLIFF file to be translated.")
+    parser.add_argument("output_file", nargs='?',
+                       help="Path to save the translated XLIFF file. If not provided, the input file will be translated in-place with safety measures.")
+
+    # Add some options to ensure help text formatting is consistent and provide useful information
+    parser.add_argument("--delay", type=float,
+                       help="  Set delay between translation requests in seconds (default: 0.5).")
+    parser.add_argument("--retries", type=int,
+                       help="  Set maximum number of retries for failed translations (default: 3).")
+    parser.add_argument("--safe", action="store_true",
+                       help="  Enable additional safety measures for in-place translation (already enabled by default).")
+    parser.add_argument("--temp-dir", type=str,
+                       help="  Specify a custom temporary directory for in-place translation. Useful when input file is on a different drive than the system temp directory.")
 
     args = parser.parse_args()
 
-    # Translation mode (default)
-    if args.input_file and args.output_file:
+    # Check if input file is provided
+    if args.input_file:
+        # Determine output file
+        output_file = args.output_file if args.output_file else args.input_file
+
+        # If output_file is the same as input_file, it's in-place translation
+        if output_file == args.input_file:
+            print(f"Performing in-place translation on: {args.input_file}")
+        else:
+            print(f"Translating from {args.input_file} to {output_file}")
+
         # Run translation with appropriate settings
         asyncio.run(translate_xliff(
             args.input_file,
-            args.output_file,
-            add_attribution=True
+            output_file,
+            add_attribution=True,
+            temp_dir=args.temp_dir
         ))
     else:
         parser.print_help()

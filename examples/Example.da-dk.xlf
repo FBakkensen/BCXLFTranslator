@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2-transitional.xsd">
+  <file datatype="xml" source-language="en-US" target-language="da-dk" original="Document Automation">
+    <body>
+      <group id="body">
+        <trans-unit id="Table 4110714008 - Field 4106504947 - Property 2879900210" size-unit="char" translate="yes" xml:space="preserve">
+          <source>Attached To SystemID</source>
+          <target state="needs-translation"/>
+          <note from="Developer" annotates="general" priority="2"/>
+          <note from="Xliff Generator" annotates="general" priority="3">Table Attached File - Field Attached To SystemID - Property Caption</note>
+        </trans-unit>
+        <trans-unit id="Table 4110714008 - Field 113792163 - Property 2879900210" size-unit="char" translate="yes" xml:space="preserve">
+          <source>Attachment Type</source>
+          <target>Type vedhæftet fil</target>
+          <note from="Developer" annotates="general" priority="2"/>
+          <note from="Xliff Generator" annotates="general" priority="3">Table Attached File - Field Attachment Type - Property Caption</note>
+        </trans-unit>
+        <trans-unit id="Table 4110714008 - Field 59785027 - Property 2879900210" size-unit="char" translate="yes" xml:space="preserve">
+          <source>File Storage File Type</source>
+          <target state="needs-translation"/>
+          <note from="Developer" annotates="general" priority="2"/>
+          <note from="Xliff Generator" annotates="general" priority="3">Table Attached File - Field File Storage File Type - Property Caption</note>
+        </trans-unit>
+        <trans-unit id="Table 4110714008 - Field 3004095410 - Property 2879900210" size-unit="char" translate="yes" xml:space="preserve">
+          <source>File Type</source>
+          <target>Filtype</target>
+          <note from="Developer" annotates="general" priority="2"/>
+          <note from="Xliff Generator" annotates="general" priority="3">Table Attached File - Field File Type - Property Caption</note>
+        </trans-unit>
+      </group>
+    </body>
+  </file>
+</xliff>

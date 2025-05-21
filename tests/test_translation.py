@@ -68,10 +68,9 @@ async def test_translation_process(test_files):
             target = unit.find('xliff:target', ns)
 
             if unit_id == '3':
-                # This unit should be skipped (translate="no")
-                # Allow either 'needs-translation' or None as the state
-                state = target.get('state')
-                assert state == 'needs-translation' or state is None
+                # This unit should now be translated since we removed the translate="no" check
+                assert target.text is not None
+                assert target.get('state') == 'translated'
             else:
                 # All other units should be translated
                 assert target.text is not None
@@ -411,9 +410,9 @@ async def test_google_translate_translation(tmp_path):
             source = unit.find('xliff:source', ns)
             target = unit.find('xliff:target', ns)
 
-            # Skip units with translate="no"
-            translate_attr = unit.get("translate", "yes")
-            if translate_attr.lower() == "no":
+            # Skip units with non-empty target
+            target_text = target.text or ""
+            if target_text.strip():
                 continue
 
             if source is not None and target is not None:
@@ -461,6 +460,67 @@ async def test_namespace_preservation():
         assert '<trans-unit ' in output_content, "Trans-unit element should not have a namespace prefix"
         assert '<source>' in output_content, "Source element should not have a namespace prefix"
         assert '<target' in output_content, "Target element should not have a namespace prefix"
+
+@pytest.mark.asyncio
+async def test_skip_non_empty_targets():
+    """
+    Given an XLIFF file with some trans-units having non-empty targets
+    When the translate_xliff function is called
+    Then it should skip translation for units with non-empty targets
+    """
+    input_content = '''<?xml version="1.0" encoding="utf-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en-US" target-language="da-DK">
+    <body>
+      <trans-unit id="1">
+        <source>Hello World</source>
+        <target state="needs-translation"></target>
+      </trans-unit>
+      <trans-unit id="2">
+        <source>Already translated</source>
+        <target state="translated">Allerede oversat</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>'''
+
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlf') as f:
+        f.write(input_content)
+        temp_input = f.name
+
+    temp_output = temp_input + '.out.xlf'
+
+    try:
+        # Run translation
+        await translate_xliff(temp_input, temp_output)
+
+        # Parse and verify the translated output
+        tree = ET.parse(temp_output)
+        root = tree.getroot()
+        ns = {'xliff': 'urn:oasis:names:tc:xliff:document:1.2'}
+
+        # Get all translation units
+        units = root.findall('.//xliff:trans-unit', ns)
+
+        # Check each unit
+        for unit in units:
+            unit_id = unit.get('id')
+            target = unit.find('xliff:target', ns)
+
+            if unit_id == '1':
+                # This unit had an empty target, so it should be translated
+                assert target.text is not None
+                assert target.get('state') == 'translated'
+            elif unit_id == '2':
+                # This unit had a non-empty target, so it should remain unchanged
+                assert target.text == 'Allerede oversat'
+                assert target.get('state') == 'translated'
+
+    finally:
+        # Cleanup
+        os.unlink(temp_input)
+        if os.path.exists(temp_output):
+            os.unlink(temp_output)
 
 @pytest.mark.asyncio
 async def test_closing_tag_formatting(test_files):

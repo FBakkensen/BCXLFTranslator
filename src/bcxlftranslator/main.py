@@ -325,20 +325,20 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                 # Report progress
                 report_progress(i, total_units)
 
-                # Check if this unit should be translated
-                translate_attr = trans_unit.get("translate", "yes")
-                if translate_attr.lower() == "no":
-                    continue
-
                 # Get source and target elements
                 source_elem = trans_unit.find(f"{ns}source")
                 target_elem = trans_unit.find(f"{ns}target")
 
                 if source_elem is not None and target_elem is not None:
                     source_text = source_elem.text or ""
+                    target_text = target_elem.text or ""
 
                     # Skip empty source text
                     if not source_text.strip():
+                        continue
+
+                    # Skip if target already has content
+                    if target_text.strip():
                         continue
 
                     # Translate using Google Translate

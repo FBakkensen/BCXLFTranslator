@@ -256,6 +256,33 @@ def strip_namespace(elem):
     for child in elem:
         strip_namespace(child)
 
+def remove_specific_notes(trans_unit, ns):
+    """
+    Remove note elements with from="NAB AL Tool Refresh Xlf" from a trans-unit.
+
+    Args:
+        trans_unit (ET.Element): The trans-unit element to process
+        ns (str): The namespace prefix to use for finding elements
+
+    Returns:
+        bool: True if any notes were removed, False otherwise
+    """
+    if trans_unit is None:
+        return False
+
+    # Find all note elements
+    notes_to_remove = []
+    for child in trans_unit:
+        # Check if this is a note element with the specific 'from' attribute
+        if child.tag.endswith('note') and child.get('from') == "NAB AL Tool Refresh Xlf":
+            notes_to_remove.append(child)
+
+    # Remove the identified notes
+    for note in notes_to_remove:
+        trans_unit.remove(note)
+
+    return len(notes_to_remove) > 0
+
 async def translate_xliff(input_file, output_file, add_attribution=True):
     """
     Main translation function - googletrans 4.0.2 version using async context manager
@@ -390,6 +417,9 @@ async def translate_xliff(input_file, output_file, add_attribution=True):
                     # Update the target element
                     target_elem.text = target_text
                     target_elem.set("state", "translated")
+
+                    # Remove specific notes with from="NAB AL Tool Refresh Xlf"
+                    remove_specific_notes(trans_unit, ns)
 
                     # Add attribution note if requested
                     if add_attribution:

@@ -713,29 +713,41 @@ def main():
         description=(
             "Translate XLIFF files for Microsoft Dynamics 365 Business Central\n"
             "using Google Translate (via googletrans library) with caching.\n\n"
-            "This tool provides a simple way to translate XLIFF files using Google Translate."
+            "This tool provides a simple way to translate XLIFF files using Google Translate.\n\n"
+            "Two operation modes are supported:\n"
+            "1. Two-file mode: Translate from an input file to a separate output file\n"
+            "2. In-place mode: Translate a file and update it directly (with safety measures)\n\n"
+            "In-place translation uses temporary files and validation to ensure the original\n"
+            "file is only modified if translation is successful. A backup is created before\n"
+            "replacing the original file for additional safety."
         ),
         epilog=(
             "\nEXAMPLES:\n"
-            "  # Translate an XLIFF file to a new file\n"
+            "  # Two-file mode: Translate an XLIFF file to a new file\n"
             "  main.py input.xlf output.xlf\n\n"
-            "  # Translate an XLIFF file in-place (modifies the original file)\n"
-            "  main.py input.xlf\n"
+            "  # In-place mode: Translate an XLIFF file in-place (modifies the original file)\n"
+            "  main.py input.xlf\n\n"
+            "  # Example with language-specific files\n"
+            "  main.py BaseApp.en-US.xlf BaseApp.fr-FR.xlf    # Two-file mode\n"
+            "  main.py BaseApp.fr-FR.xlf                      # In-place mode\n"
             "\nFor more information, see project documentation or use --help.\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
     # Translation CLI arguments
-    parser.add_argument("input_file", nargs='?', help="Path to the input XLIFF file.")
-    parser.add_argument("output_file", nargs='?', help="Path to save the translated XLIFF file. If not provided, the input file will be translated in-place.")
+    parser.add_argument("input_file", nargs='?',
+                       help="Path to the input XLIFF file to be translated.")
+    parser.add_argument("output_file", nargs='?',
+                       help="Path to save the translated XLIFF file. If not provided, the input file will be translated in-place with safety measures.")
 
-    # Add some dummy options to ensure help text formatting is consistent
-    # These options are just for help text formatting and don't affect functionality
+    # Add some options to ensure help text formatting is consistent and provide useful information
     parser.add_argument("--delay", type=float,
-                       help="  Set delay between translation requests in seconds.")
+                       help="  Set delay between translation requests in seconds (default: 0.5).")
     parser.add_argument("--retries", type=int,
-                       help="  Set maximum number of retries for failed translations.")
+                       help="  Set maximum number of retries for failed translations (default: 3).")
+    parser.add_argument("--safe", action="store_true",
+                       help="  Enable additional safety measures for in-place translation (already enabled by default).")
 
     args = parser.parse_args()
 

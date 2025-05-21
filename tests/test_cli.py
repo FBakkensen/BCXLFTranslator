@@ -169,3 +169,32 @@ def test_cli_with_single_file_arg():
             args, _ = mock_translate.call_args
             assert args[0] == 'input.xlf'
             assert args[1] == 'input.xlf'  # Same file for input and output
+
+def test_help_text_includes_inplace_translation_info(capsys):
+    """
+    Given the CLI is run with --help
+    When the main function is called
+    Then the help text should include information about in-place translation
+    """
+    with patch('sys.argv', ['main.py', '--help']):
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        help_text = captured.out.lower()
+
+        # Check for in-place translation information
+        assert 'in-place' in help_text
+        assert 'two operation modes' in help_text
+        assert 'two-file mode' in help_text
+        assert 'in-place mode' in help_text
+        assert 'safety measures' in help_text
+        assert 'temporary files' in help_text
+        assert 'backup' in help_text
+
+        # Check for examples
+        assert 'main.py input.xlf output.xlf' in help_text  # Two-file mode example
+        assert 'main.py input.xlf' in help_text  # In-place mode example
+
+        # Check for language-specific examples
+        assert 'baseapp.en-us.xlf baseapp.fr-fr.xlf' in help_text  # Two-file mode with language codes
+        assert 'baseapp.fr-fr.xlf' in help_text  # In-place mode with language code
